@@ -137,9 +137,17 @@ public partial class App : Application
             new BrowserTools(),
             new AppTools(new WindowsAppControl()),
         };
-        string model = string.IsNullOrWhiteSpace(modelManager.CurrentModel)
-            ? "qwen3:4b"
-            : modelManager.CurrentModel;
+        // The model is the user's saved default when one exists (Model
+        // Manager → Switch persists it in preferences); otherwise the
+        // ModelManager's current model, otherwise the primary catalog
+        // model. A missing saved model is handled at runtime by the
+        // model-not-found fallback — startup must not block on Ollama.
+        string savedModel = memory.GetPreference("model") ?? string.Empty;
+        string model = !string.IsNullOrWhiteSpace(savedModel)
+            ? savedModel
+            : string.IsNullOrWhiteSpace(modelManager.CurrentModel)
+                ? "qwen3:4b"
+                : modelManager.CurrentModel;
         var engine = new AgentEngine(ollama, model, tools, permissions, viewModel.AgentProgress,
             approvalService, new ApprovalSettings(AutoApproveLowRisk: true, ApprovalTimeout: TimeSpan.FromMinutes(5)));
         _engine = engine;

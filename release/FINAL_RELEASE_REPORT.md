@@ -216,3 +216,108 @@ Files changed in this fix: `src/AuroraOperator.Installer/AuroraOperator.nsi`
 `tests/AuroraOperator.Tests/NsisInstallerTests.cs`, `release/` (installer
 ×2 names, `SHA256SUMS.txt`, `RELEASE_NOTES.md`,
 `WINDOWS_TEST_RESULTS.md`, this report), `build.log` appended.
+
+## 11. Addendum 2026-11-22 — model-not-found fix (found on the user's real Windows PC)
+
+**Real-world failure:** after the nsExec fix, the user installed the
+fixed installer and Aurora Operator opened on their PC and connected
+to Ollama (localhost:11434) — the first successful Windows run. They
+typed "hi" and got only a local summary: Ollama `/api/chat` returned
+404 `{"error":"model 'qwen3:4b' not found"}`. Their PC has qwen3.5:4b
+installed, not qwen3:4b (Aurora's default), and the app fell back
+silently without explaining or fixing anything.
+
+**Fix (all real, no simulated behaviour):**
+- `src/AuroraOperator.Core/Ollama/ModelNotFoundException.cs` (new):
+  a 404 whose body says a model is not installed is a distinct
+  `ModelNotFound` outcome (extends `HttpRequestException`, so generic
+  catch sites keep working) — never "Ollama is down".
+- `src/AuroraOperator.Core/Ollama/OllamaClient.cs`: classification in
+  chat, generate and streaming paths; a 404 without a model-not-found
+  body stays a plain failure and never triggers a fallback.
+- `src/AuroraOperator.Core/Ollama/ModelFallback.cs` (new): pure
+  fallback selection — catalog models first in priority order
+  (qwen3:4b, qwen3:1.7b, qwen3:0.6b, qwen3:8b, qwen3.5:2b,
+  qwen2.5-coder:3b), otherwise an installed non-catalog model
+  (qwen family preferred, e.g. qwen3.5:4b), null when nothing is
+  installed; plus the merged Model Manager list (catalog entries
+  flagged installed/not, installed non-catalog models marked
+  "Installed (not in catalog)").
+- `src/AuroraOperator.Core/Agent/AgentEngine.cs`: on ModelNotFound the
+  engine lists installed models, retries the request with the fallback
+  and says plainly in the reply which model was used and why,
+  including the exact `ollama pull <model>` command; when nothing is
+  installed it says so clearly instead of fabricating an answer. The
+  fallback is session-only — it never rewrites the persisted default.
+  The engine model is now mutable (`UpdateModel`); previously a Model
+  Manager switch did nothing until the app restarted.
+- `src/AuroraOperator.Core/Ollama/ModelManager.cs`:
+  `GetAvailableModelsAsync` (merged list) and
+  `ResolveFallbackModelAsync`; switch logs a missing model distinctly.
+- `src/AuroraOperator.App/ViewModels/MainViewModel.cs`: Model Manager
+  shows the merged list; Switch saves the choice as the default
+  (preferences) and updates the running engine; Download now asks for
+  approval first (external multi-GB download, `RiskLevel.
+  ExternalCommunication`, exact command `ollama pull <model>` shown);
+  the status bar reports a session fallback and how to make it
+  permanent. `src/AuroraOperator.App/App.xaml.cs` loads the saved
+  default model at startup. `MainWindow.xaml` shows the merged labels
+  and updated help text.
+
+**Tests:** new `tests/AuroraOperator.Tests/ModelNotFoundTests.cs`
+(17 cases: 404 classification for chat/generate/streaming, plain-404
+non-classification, fallback selection incl. catalog preference,
+non-catalog qwen3.5:4b, none-installed, merged list, ModelManager
+merge/resolve, engine end-to-end fallback / no-model / configured
+model present) plus 1 updated test in `OllamaPhase7Tests.cs` (the 404
+model-not-found case now expects `ModelNotFoundException`).
+
+**Build + tests (final tree, 2026-11-22):** clean build **0 errors,
+40 warnings** (same composition as before: 32× NU1603 PdfPig +
+4× CS8600 + 2× CS0067 + 2× xUnit2013; no new warnings). TestRunner
+**285 passed, 0 failed, 285 total** (268 + 17 new; all 17 new PASS).
+`dotnet test` still 0 run (sandbox proxy).
+
+**Re-publish:** App code changed, so win-x64 self-contained was
+re-published fresh: 270 MB / 815 files, PE32+ GUI exe, e_sqlite3.dll
+and `.playwright/node/win32_x64/node.exe` present.
+
+**Recompiled installer:** `makensis AuroraOperator.nsi` (3.08-2 —
+reinstalled from the Ubuntu noble pool debs after the VM reset, same
+version as before), exit 0. Output
+`AuroraOperator-Setup-0.2.0-x64.exe`, **110,189,071 bytes**, PE32 GUI,
+SHA-256
+`7473a7ab1cc1ce0a8914a092efd1c9b3a72015f1643bd439182a8c43acadf084`,
+install data 110,058,485 / 280,943,279 bytes. The previous binary
+(110,168,298 bytes, SHA-256 `4b9b361f…`) is SUPERSEDED. The portable
+ZIP was NOT rebuilt (not requested) and is now STALE — it does not
+contain this fix; this is noted in `SHA256SUMS.txt` and
+`RELEASE_NOTES.md`.
+
+**Drive re-upload:** the new installer REPLACED the existing Google
+Drive file (same file ID `1bT77LhB9fFTfy6zQfbTwj1U3rOVXatJH`, same
+link `https://drive.google.com/file/d/1bT77LhB9fFTfy6zQfbTwj1U3rOVXatJH/view?usp=drivesdk`).
+Verified after the update: Drive reports size **110189071**, matching
+the new local file byte-for-byte. No second Drive file was created.
+
+**GitHub:** code pushed to the public repo
+`https://github.com/rubabpashteen-sudo/aurora-operator` (snapshot
+push per the connector procedure; commit SHA recorded in
+`build.log`). Verified by reading a changed file back from GitHub.
+
+**Status:** the new installer is still **UNEXECUTED on Windows**
+(compile PASS only). The user's re-download from the same Drive link
+and re-run is its first execution test. Verdict unchanged:
+**CONDITIONAL — USER TESTING REQUIRED.**
+
+Files changed in this fix: `src/AuroraOperator.Core/Ollama/
+ModelNotFoundException.cs` (new), `ModelFallback.cs` (new),
+`OllamaClient.cs`, `ModelManager.cs`,
+`src/AuroraOperator.Core/Agent/AgentEngine.cs`,
+`src/AuroraOperator.App/App.xaml.cs`, `MainWindow.xaml`,
+`ViewModels/MainViewModel.cs`, new
+`tests/AuroraOperator.Tests/ModelNotFoundTests.cs`,
+`OllamaPhase7Tests.cs` (1 test updated), `PUSH_INSTRUCTIONS.md`
+(repo now exists), `release/` (installer, `SHA256SUMS.txt`,
+`RELEASE_NOTES.md`, `WINDOWS_TEST_RESULTS.md`, this report),
+`build.log` appended.

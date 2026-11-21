@@ -1,52 +1,44 @@
 # Publishing Aurora Operator to GitHub
 
-The code in this folder is ready to push. It is already a git repository
-(`main` branch, one commit) with a `.gitignore` that keeps binaries,
-build outputs and local data out of the tree.
+The code in this folder is published on GitHub:
+
+**https://github.com/rubabpashteen-sudo/aurora-operator** (public, `main` branch)
+
+The first snapshot (92 text files) was pushed 2026-11-22 00:32 PKT as
+commit `2d0748143522f1fa42a3b05a62bd59709f79568f`, verified by reading
+files back from GitHub. Updates are pushed the same way (see below).
+Your Codex can clone it with:
+
+`git clone https://github.com/rubabpashteen-sudo/aurora-operator.git`
 
 ## Why this file exists
 
 The Muse GitHub connection in this workspace can read repositories and
 push files to repositories the Muse GitHub App is installed on, but it
 **cannot create a new repository**: `create_repository` fails with
-`403 Resource not accessible by integration`. Creating the empty
-repository is therefore the one step that has to happen on github.com
-(about one minute). Everything after that can be done from here.
+`403 Resource not accessible by integration`. The repository was
+therefore created on github.com (via the browser, signed in as
+rubabpashteen-sudo) and the code was pushed to it as a snapshot.
 
-## Step 1 — Create the empty repository (on github.com)
+## Pushing updates (from this machine)
 
-1. Go to https://github.com/new and sign in as
-   **rubabpashteen-sudo** (the account the code will live under).
-2. Repository name: `aurora-operator`
-3. Description: `Aurora Operator — a local-first Windows desktop AI agent (.NET 8 WPF + Ollama).`
-4. Visibility: **Public** is recommended. The tree was verified to
-   contain no credentials, tokens, API keys or personal data, and
-   public is the only visibility that guarantees any Codex can read it
-   without knowing how that Codex authenticates. Choose Private only
-   if your Codex signs in as the same GitHub account.
-5. Do **not** initialise it with a README, licence or .gitignore —
-   leave it completely empty.
-6. Create the repository.
+Muse pushes updates through its GitHub connector, following
+`/opt/hatch/connectors/github/references/snapshot-push.md` exactly:
 
-## Step 2 — Let Muse (and Codex) reach it
+1. Build the NUL-delimited manifest of tracked + unignored untracked
+   files (excluding sync records) with `git ls-files`.
+2. Recheck the `main` branch head with `list_commits` first.
+3. Push with `github push-files --owner rubabpashteen-sudo --repo
+   aurora-operator --branch main --message "..." --source-dir
+   <absolute path> --paths-file <manifest>`.
+4. Record the confirmed commit SHA in the adjacent sync record
+   `<source-dir>.muse-github-snapshot-sync.json`.
+5. Verify afterwards by reading at least one changed file back from
+   GitHub.
 
-- If you want Muse to push updates to it later, install the Muse
-  GitHub App on the new repository (GitHub → Settings → Applications
-  → Muse → Repository access → select `aurora-operator`).
-- Your Codex can then clone it with:
-  `git clone https://github.com/rubabpashteen-sudo/aurora-operator.git`
-  (public), or via its own GitHub connection if you keep it private.
-
-## Step 3 — Push this tree (from this machine)
-
-```sh
-cd ~/workspace/aurora-operator
-git remote add origin https://github.com/rubabpashteen-sudo/aurora-operator.git
-git push -u origin main
-```
-
-That pushes the local `main` commit (91 text files). The intended URL
-afterwards is: https://github.com/rubabpashteen-sudo/aurora-operator
+Do NOT use `git push` with a token: there is no GitHub login on this
+machine (`gh` is not authenticated) and no separate auth flow may be
+started — the connector's push-files route is the supported path.
 
 ## Notes
 
@@ -61,8 +53,6 @@ afterwards is: https://github.com/rubabpashteen-sudo/aurora-operator
   build will fail on the missing icon.
 - The installer itself is delivered separately (Google Drive link in
   `release/`); GitHub holds source code only.
-- If you would rather have Muse push the files through its GitHub
-  connector instead of the commands above, create the empty repo as
-  in Step 1, install the Muse GitHub App on it as in Step 2, and ask
-  Muse to push the snapshot — it will verify the repo is empty first
-  and then upload the same 91 files.
+- The tree was verified to contain no credentials, tokens, API keys or
+  personal data. Public is the visibility that guarantees any Codex can
+  read it without knowing how that Codex authenticates.

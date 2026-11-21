@@ -1,9 +1,20 @@
 # Aurora Operator 0.2.0 — Release Notes (Release Candidate)
 
-**Version:** 0.2.0 · **Built:** 2026-11-21, installer rebuilt 2026-11-22 · **Status: Release Candidate for user testing — NOT production-ready.**
-The installer below is a genuine compiled NSIS installer, but it has never been
-executed successfully on Windows yet. You are the first Windows test. Please follow
-`INSTALLATION_GUIDE.md` and report anything that fails.
+**Version:** 0.2.0 · **Built:** 2026-11-21, installer rebuilt 2026-11-22 (twice) · **Status: Release Candidate for user testing — NOT production-ready.**
+The fixed installer has now installed and run on the user's real Windows PC (see below), but this build has still not been through full Windows acceptance testing. Please follow `INSTALLATION_GUIDE.md` and report anything that fails.
+
+## 2026-11-22 model-not-found fix — please re-download
+
+The installer now installs and the app opens on Windows (first successful Windows run, 2026-11-22 ~01:00 PKT — see `WINDOWS_TEST_RESULTS.md`). But the first thing the user tried ("hi") got only a local summary: Ollama answered `/api/chat` with **404 `{"error":"model 'qwen3:4b' not found"}`** because the PC has `qwen3.5:4b` installed, not `qwen3:4b` (Aurora's default), and the app fell back silently without explaining or fixing anything.
+
+This build fixes that for real:
+- A 404 that says a model is not found is now a distinct `ModelNotFound` outcome (chat, generate and streaming) — never reported as "Ollama is down".
+- When the configured model is missing, Aurora asks Ollama which models ARE installed and answers with the best one — a catalog model first (`qwen3:4b`, `qwen3:1.7b`, `qwen3:0.6b`, `qwen3:8b`, `qwen3.5:2b`, `qwen2.5-coder:3b`), otherwise an installed non-catalog model such as `qwen3.5:4b` — and says plainly in the reply which model it used and why, including the exact `ollama pull <model>` command for the missing model.
+- If no model is installed at all, Aurora says so clearly instead of fabricating an answer, and names the exact pull command.
+- Model Manager now lists installed models alongside catalog entries, marking non-catalog installed models as "Installed (not in catalog)"; any installed model can be selected, and Switch saves it as the default (used from the next start, and immediately by the running app).
+- Downloading a model from Model Manager now asks for your approval first (it is a multi-GB external download).
+
+Covered by 17 new regression tests (`tests/AuroraOperator.Tests/ModelNotFoundTests.cs`) plus 1 updated test; TestRunner 285 passed / 0 failed. **Re-download the installer from the same Google Drive link** — the file there is replaced with this build below. The portable ZIP is stale (built 2026-11-21, no model fix) — use the installer.
 
 ## 2026-11-22 installer fix — please re-download
 
@@ -27,8 +38,8 @@ re-run is its first execution test.
 
 | File | Size | SHA-256 |
 | --- | --- | --- |
-| `AuroraOperator-Setup-0.2.0-x64.exe` (NSIS installer — use this) | 110,168,298 bytes (~105 MB) | `4b9b361f8ddac147385dc593eb42c5ad39f9240f6400d02cf66b7176e6ffe50a` |
-| `AuroraOperator-Portable-0.2.0-x64.zip` (portable, no installer) | 110,283,558 bytes (~105 MB) | `7b25faddd76f89ca97f6b21b250a8ce2d867a299c67ef18412a891bb9320ca54` |
+| `AuroraOperator-Setup-0.2.0-x64.exe` (NSIS installer — use this) | 110,189,071 bytes (~105 MB) | `7473a7ab1cc1ce0a8914a092efd1c9b3a72015f1643bd439182a8c43acadf084` |
+| `AuroraOperator-Portable-0.2.0-x64.zip` (portable, no installer — STALE, built 2026-11-21, no model fix) | 110,283,558 bytes (~105 MB) | `7b25faddd76f89ca97f6b21b250a8ce2d867a299c67ef18412a891bb9320ca54` |
 
 `AuroraOperator-Setup-NSIS-0.2.0.exe` is the same installer under its
 builder name (identical file, identical SHA-256). Verify any download with

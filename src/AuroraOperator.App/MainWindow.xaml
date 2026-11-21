@@ -521,7 +521,8 @@
                   <Run Text="{Binding CurrentModel}" FontWeight="SemiBold" />
                 </TextBlock>
                 <ComboBox Margin="0,12,0,0" ItemsSource="{Binding AvailableModels}"
-                          SelectedItem="{Binding SelectedModel}" />
+                          DisplayMemberPath="DisplayLabel" SelectedValuePath="Name"
+                          SelectedValue="{Binding SelectedModel}" />
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                   <Button Content="Switch" Style="{StaticResource ActionButtonStyle}"
                           Command="{Binding SwitchModelCommand}" />
@@ -532,7 +533,7 @@
                 </StackPanel>
                 <TextBlock Margin="0,16,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap"
-                           Text="Recommended: qwen3:4b on machines with 8 GB RAM or more, qwen3:1.7b below that. Models download from Ollama on first use and stay on this machine." />
+                           Text="Recommended: qwen3:4b on machines with 8 GB RAM or more, qwen3:1.7b below that. Models already on this PC are listed too — including ones that are not in the catalogue, marked 'Installed (not in catalog)' — and can be selected. Switch makes the selected model the default (saved, used from the next start). Download asks for your approval first, because it is a large download." />
               </StackPanel>
             </ScrollViewer>
 

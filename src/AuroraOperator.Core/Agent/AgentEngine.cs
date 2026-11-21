@@ -50,7 +50,7 @@ public sealed class AgentEngine : IDisposable
     public const int MaxRetriesPerStep = 2;
 
     private readonly OllamaClient? _ollama;
-    private readonly string _model;
+    private volatile string _model;
     private readonly IReadOnlyList<IAgentTool> _tools;
     private readonly PermissionManager _permissions;
     private readonly IProgress<AgentEvent>? _progress;
@@ -101,6 +101,36 @@ public sealed class AgentEngine : IDisposable
     }
 
     public bool IsPaused => _paused;
+
+    /// <summary>The model new tasks are answered with (the configured
+    /// model, unless a session fallback is active — see below).</summary>
+    public string CurrentModel => _model;
+
+    /// <summary>
+    /// Changes the model new tasks use. Called when the user switches
+    /// model in Model Manager; the previous design kept the startup
+    /// model for the whole run, so a switch silently did nothing until
+    /// the app restarted.
+    /// </summary>
+    public void UpdateModel(string model)
+    {
+        if (!string.IsNullOrWhiteSpace(model))
+        {
+            _model = model.Trim();
+        }
+    }
+
+    /// <summary>
+    /// Installed model this session is actually answering with, after a
+    /// model-not-found fallback. Session-only: it never rewrites the
+    /// user's persisted default (Model Manager → Switch does that, on
+    /// purpose). Null when no fallback has happened.
+    /// </summary>
+    public string? SessionFallbackModel { get; private set; }
+
+    /// <summary>The configured model that was missing when the session
+    /// fallback was chosen. Null when no fallback has happened.</summary>
+    public string? LastMissingModel { get; private set; }
 
     /// <summary>
     /// The async pause gate holds no OS handle, so there is nothing to
@@ -663,7 +693,8 @@ public sealed class AgentEngine : IDisposable
 
         try
         {
-            if (!await _ollama.IsAvailableAsync(ct).ConfigureAwait(false))
+            var ollama = _ollama;
+            if (!await ollama.IsAvailableAsync(ct).ConfigureAwait(false))
             {
                 local.AppendLine();
                 local.AppendLine("Note: Ollama was not reachable, so this answer is the local summary above.");
@@ -675,7 +706,52 @@ public sealed class AgentEngine : IDisposable
                     "You are Aurora Operator, a helpful Windows desktop assistant. Answer concisely and accurately. Do not claim to have done anything on the computer."),
                 new ChatMessage("user", task.UserRequest),
             };
-            var answer = await _ollama.ChatAsync(_model, messages, ct).ConfigureAwait(false);
+            // A session fallback (see below) is used for the rest of the
+            // session; otherwise the configured model.
+            var effectiveModel = SessionFallbackModel ?? _model;
+            string answer;
+            try
+            {
+                answer = await ollama.ChatAsync(effectiveModel, messages, ct).ConfigureAwait(false);
+            }
+            catch (ModelNotFoundException ex) when (SessionFallbackModel is null)
+            {
+                // The configured model is not installed — the real-world
+                // 2026-11-22 failure (qwen3:4b missing, qwen3.5:4b
+                // installed). Never answer silently with the local
+                // summary: fall back to an installed model transparently
+                // and say so, or say plainly that no model is installed.
+                LastMissingModel = ex.Model;
+                var fallback = await ResolveFallbackModelAsync(ollama, ex.Model, ct).ConfigureAwait(false);
+                if (fallback is null)
+                {
+                    local.AppendLine();
+                    local.AppendLine("Note: I could not answer with AI because no model is installed. " +
+                        $"Your model '{ex.Model}' is not installed, and no other model is installed on this PC either. " +
+                        $"Install it with: {ModelFallback.PullCommand(ex.Model)} — or open Model Manager and press Download " +
+                        "(it will ask for your approval first, because it is a large download).");
+                    return local.ToString().TrimEnd();
+                }
+                SessionFallbackModel = fallback;
+                try
+                {
+                    answer = await ollama.ChatAsync(fallback, messages, ct).ConfigureAwait(false);
+                }
+                catch (ModelNotFoundException)
+                {
+                    // The fallback vanished between listing and chatting;
+                    // forget it and report the failure honestly below.
+                    SessionFallbackModel = null;
+                    throw;
+                }
+                var notice = $"Note: your model '{ex.Model}' is not installed, so I answered with '{fallback}' instead " +
+                    $"(it is already installed on this PC). To use '{ex.Model}', run: {ModelFallback.PullCommand(ex.Model)} " +
+                    $"— or open Model Manager and press Download (approval required). " +
+                    $"To make '{fallback}' your default model, open Model Manager, select it and press Switch.";
+                return string.IsNullOrWhiteSpace(answer)
+                    ? local.ToString().TrimEnd() + "\n\n" + notice
+                    : notice + "\n\n" + answer.Trim();
+            }
             return string.IsNullOrWhiteSpace(answer) ? local.ToString().TrimEnd() : answer.Trim();
         }
         catch (OperationCanceledException)
@@ -688,6 +764,23 @@ public sealed class AgentEngine : IDisposable
             local.AppendLine();
             local.AppendLine("Note: Ollama could not answer (" + ex.Message + "), so this is the local summary.");
             return local.ToString().TrimEnd();
+        }
+    }
+
+    /// <summary>Best installed model to use instead of a missing
+    /// configured model, or null when nothing is installed (or Ollama
+    /// stops answering while listing). Never throws.</summary>
+    private static async Task<string?> ResolveFallbackModelAsync(OllamaClient ollama, string configuredModel, CancellationToken ct)
+    {
+        try
+        {
+            var installed = await ollama.ListModelsAsync(ct).ConfigureAwait(false);
+            return ModelFallback.SelectFallbackModel(configuredModel, installed);
+        }
+        catch (Exception ex)
+        {
+            LocalLogger.Warn("Could not list installed models for fallback: " + ex.Message);
+            return null;
         }
     }
 

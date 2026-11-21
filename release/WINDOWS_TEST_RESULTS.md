@@ -6,6 +6,10 @@ below is therefore BLOCKED or NOT TESTED — nothing here is a Windows
 acceptance pass. A PASS means actual execution evidence on the stated
 machine; code inspection and mocked tests are never a Windows PASS.
 
+## First successful Windows run + model-not-found finding (2026-11-22, user PC)
+
+After the nsExec fix, the user installed the fixed installer and Aurora Operator **opened on their real Windows PC and connected to Ollama (localhost:11434)** — the first successful Windows run. The user typed "hi" and got only a local summary: Ollama `/api/chat` returned **404 `{"error":"model 'qwen3:4b' not found"}`** because the PC has `qwen3.5:4b` installed (3.3 GB), not `qwen3:4b` (Aurora's default). The app fell back silently. Status: installer execution on Windows — **PASS (installed and launched)**; first-use AI answer — **FAIL (silent model-not-found fallback)**, fixed in the 2026-11-22 model-not-found build (17 new regression tests, TestRunner 285 passed). The new installer has not executed on Windows yet; the user's re-run is its first execution test. Note: `qwen3.5:4b` is outside Aurora's model catalog, so Model Manager previously could not offer it as a selectable model — the fix makes installed non-catalog models selectable.
+
 ## First real Windows execution evidence (2026-11-22, user PC)
 
 The user ran the first installer on their real Windows PC (Ollama

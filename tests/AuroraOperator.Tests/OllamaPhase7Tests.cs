@@ -94,14 +94,17 @@ public sealed class OllamaPhase7Tests
     }
 
     [Fact]
-    public async Task ChatAsync_Throws_OnServerError()
+    public async Task ChatAsync_ThrowsModelNotFound_On404ModelNotFound()
     {
+        // A 404 whose body says the model is not installed is a distinct
+        // outcome (ModelNotFoundException), not a generic failure.
         var handler = new StubHandler(_ =>
             StubHandler.Json("""{"error":"model not found"}""", HttpStatusCode.NotFound));
         using var client = new OllamaClient(handler);
-        var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
+        var ex = await Assert.ThrowsAsync<ModelNotFoundException>(() =>
             client.ChatAsync("qwen3:does-not-exist",
                 new[] { new ChatMessage("user", "hi") }, CancellationToken.None));
+        Assert.Equal("qwen3:does-not-exist", ex.Model);
         Assert.Contains("404", ex.Message, StringComparison.Ordinal);
     }
 

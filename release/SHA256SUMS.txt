@@ -1,3 +1,6 @@
-4b9b361f8ddac147385dc593eb42c5ad39f9240f6400d02cf66b7176e6ffe50a  AuroraOperator-Setup-0.2.0-x64.exe
-4b9b361f8ddac147385dc593eb42c5ad39f9240f6400d02cf66b7176e6ffe50a  AuroraOperator-Setup-NSIS-0.2.0.exe
+7473a7ab1cc1ce0a8914a092efd1c9b3a72015f1643bd439182a8c43acadf084  AuroraOperator-Setup-0.2.0-x64.exe
+7473a7ab1cc1ce0a8914a092efd1c9b3a72015f1643bd439182a8c43acadf084  AuroraOperator-Setup-NSIS-0.2.0.exe
 7b25faddd76f89ca97f6b21b250a8ce2d867a299c67ef18412a891bb9320ca54  AuroraOperator-Portable-0.2.0-x64.zip
+# NOTE: the portable ZIP is STALE (built 2026-11-21 from the pre-fix app).
+# It does NOT contain the 2026-11-22 model-not-found fix. Use the installer
+# above. The ZIP was deliberately not rebuilt (user did not ask for it).

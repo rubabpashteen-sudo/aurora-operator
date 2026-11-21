@@ -228,7 +228,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<AgentTask> RecentTasks { get; } = new();
     public ObservableCollection<string> AttachedFiles { get; } = new();
     public ObservableCollection<string> FilesUsed { get; } = new();
-    public ObservableCollection<string> AvailableModels { get; } = new();
+    public ObservableCollection<AvailableModel> AvailableModels { get; } = new();
 
     public ICommand SendCommand { get; }
     public ICommand StopCommand { get; }
@@ -496,9 +496,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            IReadOnlyList<string> models = await _ollama.ListModelsAsync(CancellationToken.None);
+            // Merged list: every catalog entry (flagged installed or
+            // not) plus installed models that are not in the catalog
+            // (for example qwen3.5:4b) — see ModelFallback.
+            IReadOnlyList<AvailableModel> models = await _modelManager.GetAvailableModelsAsync(CancellationToken.None);
             AvailableModels.Clear();
-            foreach (string model in models)
+            foreach (AvailableModel model in models)
             {
                 AvailableModels.Add(model);
             }
@@ -510,11 +513,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         if (AvailableModels.Count == 0)
         {
-            // Ollama is down or has no models yet: show the known catalogue
-            // so the user can still pick (and download) a model.
+            // Ollama is down: show the known catalogue so the user can
+            // still pick (and download) a model.
             foreach (ModelInfo info in ModelCatalog.All)
             {
-                AvailableModels.Add(info.Name);
+                AvailableModels.Add(new AvailableModel(info.Name, false, true, info.Role));
             }
         }
 
@@ -522,9 +525,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             CurrentModel = _modelManager.CurrentModel;
         }
-        else if (AvailableModels.Count > 0 && !AvailableModels.Contains(CurrentModel))
+        else if (AvailableModels.Count > 0 &&
+                 !AvailableModels.Any(m => string.Equals(m.Name, CurrentModel, StringComparison.OrdinalIgnoreCase)))
         {
-            CurrentModel = AvailableModels[0];
+            // Prefer an installed model; otherwise the first catalog entry.
+            CurrentModel = AvailableModels.FirstOrDefault(m => m.IsInstalled)?.Name ?? AvailableModels[0].Name;
         }
 
         SelectedModel = CurrentModel;
@@ -539,7 +544,20 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             if (ok)
             {
                 CurrentModel = SelectedModel;
-                StatusMessage = "Model switched to " + SelectedModel + ". New tasks use it after the engine is restarted with the new model.";
+                // Persist the choice so the next app start uses it, and
+                // tell the running engine now — previously a switch did
+                // nothing until the app restarted, because the engine kept
+                // its startup model.
+                try
+                {
+                    _memory.SetPreference("model", SelectedModel);
+                }
+                catch (Exception ex)
+                {
+                    LocalLogger.Warn("Could not save the default model. " + ex.Message);
+                }
+                Engine?.UpdateModel(SelectedModel);
+                StatusMessage = "Model switched to " + SelectedModel + " and saved as the default. New tasks will use it.";
             }
             else
             {
@@ -557,6 +575,34 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            // A model download is a multi-GB external download: it is an
+            // external side effect and must be approved first, through the
+            // approval service — never downloaded silently.
+            ModelInfo? info = ModelCatalog.All.FirstOrDefault(m =>
+                string.Equals(m.Name, SelectedModel, StringComparison.OrdinalIgnoreCase));
+            string sizeText = info is null ? string.Empty : $" (~{info.ApproxSizeBytes / 1_000_000} MB)";
+            string canonical = ApprovalService.CanonicalParameters("ollama-pull",
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["model"] = SelectedModel },
+                "Download model " + SelectedModel + " from the Ollama library");
+            var request = new ApprovalRequest(Guid.NewGuid().ToString("N"), "model-download",
+                "Download model " + SelectedModel,
+                "Downloads " + SelectedModel + sizeText + " from the Ollama model library to this PC (a large download).",
+                "ollama pull " + SelectedModel,
+                PermissionCategory.NetworkAccess)
+            {
+                ActionId = "download-model:" + SelectedModel,
+                RiskLevel = RiskLevel.ExternalCommunication,
+                ExactParameters = canonical,
+                ParameterHash = ApprovalService.ComputeParameterHash(canonical),
+                ExpiresAtUtc = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(5),
+            };
+            bool approved = await PromptForApprovalAsync(request, CancellationToken.None);
+            if (!approved)
+            {
+                StatusMessage = "Download of " + SelectedModel + " cancelled — approval was not granted.";
+                return;
+            }
+
             var progress = new Progress<double>(p =>
                 StatusMessage = "Downloading " + SelectedModel + ": " + p.ToString("P0"));
             StatusMessage = "Downloading " + SelectedModel + "…";
@@ -773,6 +819,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             _ => result.State.ToString(),
         };
         StatusMessage = "Task " + result.State + ".";
+
+        // A model-not-found fallback happened during this task: say so in
+        // the status bar too, and point at the permanent fix. The chat
+        // reply already carries the same notice.
+        if (_engine?.SessionFallbackModel is string fallback &&
+            _engine.LastMissingModel is string missing)
+        {
+            StatusMessage = $"Using {fallback} this session because {missing} is not installed. " +
+                "Switch in Model Manager to make it the default, or download " + missing + " from there.";
+        }
 
         int index = RecentTasks.IndexOf(result);
         if (index >= 0)

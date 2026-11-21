@@ -58,6 +58,28 @@ public sealed class ModelManager
         return await IsModelPresentAsync(name, ct).ConfigureAwait(false);
     }
 
+    /// <summary>Lists installed models (GET /api/tags) merged with the
+    /// catalog, so Model Manager shows installed non-catalog models
+    /// (for example qwen3.5:4b) alongside catalog entries, each flagged
+    /// installed or not.</summary>
+    public async Task<IReadOnlyList<AvailableModel>> GetAvailableModelsAsync(CancellationToken ct)
+    {
+        var installed = await _client.ListModelsAsync(ct).ConfigureAwait(false);
+        return ModelFallback.MergeAvailableModels(installed);
+    }
+
+    /// <summary>
+    /// Best installed model to use instead of
+    /// <paramref name="configuredModel"/> when it is missing, or null
+    /// when nothing usable is installed. Pure selection is in
+    /// <see cref="ModelFallback.SelectFallbackModel"/>.
+    /// </summary>
+    public async Task<string?> ResolveFallbackModelAsync(string configuredModel, CancellationToken ct)
+    {
+        var installed = await _client.ListModelsAsync(ct).ConfigureAwait(false);
+        return ModelFallback.SelectFallbackModel(configuredModel, installed);
+    }
+
     /// <summary>Switches the current model, verifying it generates a reply.</summary>
     public async Task<bool> SwitchModelAsync(string name, CancellationToken ct)
     {
@@ -68,6 +90,13 @@ public sealed class ModelManager
             CurrentModel = name;
             LocalLogger.Info($"Model switched to {name} (verified response).");
             return true;
+        }
+        catch (ModelNotFoundException ex)
+        {
+            // The model is not installed: a plain failure would hide that
+            // the fix is a download, not a retry.
+            LocalLogger.Warn($"Model switch to {name} failed: model '{ex.Model}' is not installed.");
+            return false;
         }
         catch (Exception ex)
         {

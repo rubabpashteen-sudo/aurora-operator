@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -92,6 +93,52 @@ public sealed class OllamaClient : IDisposable
     private sealed class PermanentOllamaException(string message) : Exception(message);
 
     /// <summary>
+    /// Marker for a 404 whose body says the requested model is not
+    /// installed. Converted to the public
+    /// <see cref="ModelNotFoundException"/> at the retry boundary (see
+    /// <see cref="WithRetryAsync{T}"/>). Extends plain
+    /// <see cref="Exception"/> — not <see cref="HttpRequestException"/> —
+    /// so the retry logic can never mistake it for a transient network
+    /// failure and retry it.
+    /// </summary>
+    private sealed class ModelNotFoundMarkerException(string model, string message) : Exception(message)
+    {
+        public string Model { get; } = model;
+    }
+
+    /// <summary>
+    /// True when a response body says a model was not found. Ollama's
+    /// real error is {"error":"model 'qwen3:4b' not found"}; the check is
+    /// deliberately textual (JSON "error" field when parseable, raw body
+    /// otherwise) so a differently-shaped 404 is never misclassified.
+    /// A 404 with no such body text is a plain failure, not a missing
+    /// model — it must never trigger a model fallback.
+    /// </summary>
+    private static bool IsModelNotFoundBody(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var err) &&
+                err.ValueKind == JsonValueKind.String)
+            {
+                return IsModelNotFoundText(err.GetString());
+            }
+        }
+        catch (JsonException)
+        {
+            // Not JSON: fall through to the raw-body check below.
+        }
+        return IsModelNotFoundText(body);
+    }
+
+    private static bool IsModelNotFoundText(string? text) =>
+        !string.IsNullOrWhiteSpace(text) &&
+        text.Contains("model", StringComparison.OrdinalIgnoreCase) &&
+        text.Contains("not found", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Bounded retry (Phase 8) for idempotent Ollama requests: at most 3
     /// attempts total, 250 ms then 500 ms backoff. Retried only on
     /// transient failures — 5xx responses, network errors, and timeouts.
@@ -116,6 +163,13 @@ public sealed class OllamaClient : IDisposable
                 // Permanent (4xx): never retried; surface as the plain
                 // HttpRequestException callers expect.
                 throw new HttpRequestException(ex.Message, ex);
+            }
+            catch (ModelNotFoundMarkerException ex)
+            {
+                // Model not installed: never retried; surface as the
+                // distinct ModelNotFoundException (a HttpRequestException
+                // subclass, so generic catch sites keep working).
+                throw new ModelNotFoundException(ex.Model, ex.Message, ex);
             }
             catch (TransientOllamaException) when (attempt < delays.Length)
             {
@@ -168,7 +222,9 @@ public sealed class OllamaClient : IDisposable
 
     /// <summary>Non-streaming chat. Returns the assistant's full reply text.
     /// 5xx responses are retried (bounded, see <see cref="WithRetryAsync{T}"/>);
-    /// 4xx responses fail immediately.</summary>
+    /// 4xx responses fail immediately. A 404 whose body says the model is
+    /// not installed throws <see cref="ModelNotFoundException"/> instead of
+    /// a generic failure, so callers can fall back to an installed model.</summary>
     public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
@@ -185,7 +241,14 @@ public sealed class OllamaClient : IDisposable
             if ((int)resp.StatusCode >= 500)
                 throw new TransientOllamaException($"Ollama /api/chat failed ({(int)resp.StatusCode}): {b}");
             if (!resp.IsSuccessStatusCode)
+            {
+                // A 404 whose body says the model is not installed is a
+                // distinct outcome (see ModelNotFoundException): it must
+                // never be reported as "Ollama is down".
+                if (resp.StatusCode == HttpStatusCode.NotFound && IsModelNotFoundBody(b))
+                    throw new ModelNotFoundMarkerException(model, $"Ollama /api/chat failed (404): {b}");
                 throw new PermanentOllamaException($"Ollama /api/chat failed ({(int)resp.StatusCode}): {b}");
+            }
             return b;
         }, ct).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(body);
@@ -198,7 +261,9 @@ public sealed class OllamaClient : IDisposable
     }
 
     /// <summary>Non-streaming single-prompt generation (/api/generate).
-    /// 5xx responses are retried (bounded); 4xx fail immediately.</summary>
+    /// 5xx responses are retried (bounded); 4xx fail immediately. A 404
+    /// whose body says the model is not installed throws
+    /// <see cref="ModelNotFoundException"/>.</summary>
     public async Task<string> GenerateAsync(string model, string prompt, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
@@ -210,7 +275,11 @@ public sealed class OllamaClient : IDisposable
             if ((int)resp.StatusCode >= 500)
                 throw new TransientOllamaException($"Ollama /api/generate failed ({(int)resp.StatusCode}): {b}");
             if (!resp.IsSuccessStatusCode)
+            {
+                if (resp.StatusCode == HttpStatusCode.NotFound && IsModelNotFoundBody(b))
+                    throw new ModelNotFoundMarkerException(model, $"Ollama /api/generate failed (404): {b}");
                 throw new PermanentOllamaException($"Ollama /api/generate failed ({(int)resp.StatusCode}): {b}");
+            }
             return b;
         }, ct).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(body);
@@ -231,6 +300,14 @@ public sealed class OllamaClient : IDisposable
             Content = JsonContent.Create(payload, options: JsonOptions),
         };
         using var resp = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (resp.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Streaming has no retry boundary to convert the marker, so
+            // classify the 404 here, before EnsureSuccessStatusCode.
+            var errorBody = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (IsModelNotFoundBody(errorBody))
+                throw new ModelNotFoundException(model, $"Ollama /api/chat failed (404): {errorBody}");
+        }
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8);
