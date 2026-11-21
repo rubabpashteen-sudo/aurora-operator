@@ -34,12 +34,27 @@ public sealed class WorkspaceAgentTests : IDisposable
     }
 
     [Fact]
+    public async Task RejectsPlansThatExceedTheToolBudget()
+    {
+        var calls = Enumerable.Repeat(new { tool = "list", args = new { path = "." } }, 9);
+        string oversized = JsonSerializer.Serialize(new { calls, @continue = false });
+        var handler = new Model(oversized, oversized);
+        using var ollama = new OllamaClient(handler);
+        using var engine = Engine(ollama);
+        var task = await engine.RunAsync(NewTask("Inspect this workspace."), CancellationToken.None);
+        Assert.Equal(TaskState.Failed, task.State);
+        Assert.Empty(task.Plan!.Steps);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
     public async Task ReviewRunsTheExactApprovedPlanOnce()
     {
         var handler = new Model("""{"calls":[{"tool":"write-new-text","args":{"path":"letter.txt","text":"Hello, Aurora!"}}],"continue":false}""");
         using var ollama = new OllamaClient(handler);
         var approval = new Approval(ApprovalOutcome.Approved);
         using var engine = Engine(ollama, approval);
+        engine.ContextLength = 4096;
         var task = await engine.RunAsync(NewTask("Draft a letter.", AgentMode.Plan), CancellationToken.None);
         Assert.Equal(TaskState.WaitingApproval, task.State);
         Assert.Empty(approval.Seen);
@@ -47,7 +62,8 @@ public sealed class WorkspaceAgentTests : IDisposable
 
         await engine.RunReviewedAsync(task, CancellationToken.None);
         Assert.Equal(TaskState.Completed, task.State);
-        Assert.Single(handler.Requests);
+        using var payload = JsonDocument.Parse(Assert.Single(handler.Requests));
+        Assert.Equal(4096, payload.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());
         Assert.Contains("letter.txt", Assert.Single(approval.Seen).ExactCommandOrChange);
         Assert.Equal("Hello, Aurora!", File.ReadAllText(Assert.Single(task.Artifacts)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => engine.RunReviewedAsync(task, CancellationToken.None));

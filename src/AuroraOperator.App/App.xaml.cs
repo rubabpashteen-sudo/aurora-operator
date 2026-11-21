@@ -145,11 +145,12 @@ public partial class App : Application
         // model. A missing saved model is handled at runtime by the
         // model-not-found fallback — startup must not block on Ollama.
         string savedModel = memory.GetPreference("model") ?? string.Empty;
+        var hardware = HardwareInfo.Detect();
         string model = !string.IsNullOrWhiteSpace(savedModel)
             ? savedModel
-            : string.IsNullOrWhiteSpace(modelManager.CurrentModel)
-                ? "qwen3:4b"
-                : modelManager.CurrentModel;
+            : ModelCatalog.SelectBestModel(hardware.TotalRamBytes, hardware.AvailableRamBytes);
+        modelManager.ContextLength = ModelCatalog.SelectProfile(hardware.TotalRamBytes).ContextTokens;
+        viewModel.CurrentModel = model;
         var engine = new AgentEngine(ollama, model, tools, permissions, viewModel.AgentProgress,
             approvalService, new ApprovalSettings(AutoApproveLowRisk: true, ApprovalTimeout: TimeSpan.FromMinutes(5)),
             useWorkspacePlanner: true);

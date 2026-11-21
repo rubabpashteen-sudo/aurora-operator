@@ -24,6 +24,7 @@
   <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextPrimaryColor}" />
   <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource TextMutedColor}" />
   <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+  <SolidColorBrush x:Key="PrimaryButtonTextBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="AccentSecondaryBrush" Color="{StaticResource AccentSecondaryColor}" />
   <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
   <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />

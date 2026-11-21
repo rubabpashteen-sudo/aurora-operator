@@ -54,7 +54,7 @@ public sealed partial class AgentEngine
                     throw new HttpRequestException("No local model connection.");
                 try
                 {
-                    return await _ollama.ChatAsync(model, messages, token, structured: true).ConfigureAwait(false);
+                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength).ConfigureAwait(false);
                 }
                 catch (ModelNotFoundException) when (model == _model)
                 {
@@ -63,7 +63,7 @@ public sealed partial class AgentEngine
                     fallbackNotice = $"Using installed model {fallback} because {model} is unavailable.";
                     LastMissingModel = model;
                     SessionFallbackModel = model = fallback;
-                    return await _ollama.ChatAsync(model, messages, token, structured: true).ConfigureAwait(false);
+                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength).ConfigureAwait(false);
                 }
             });
             var plan = new TaskPlan(task.TaskId, task.UserRequest, task.Language, steps.AsReadOnly(),

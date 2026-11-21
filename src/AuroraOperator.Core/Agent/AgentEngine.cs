@@ -110,6 +110,8 @@ public sealed partial class AgentEngine : IDisposable
     /// model, unless a session fallback is active — see below).</summary>
     public string CurrentModel => _model;
 
+    public int ContextLength { get; set; } = 8192;
+
     /// <summary>
     /// Changes the model new tasks use. Called when the user switches
     /// model in Model Manager; the previous design kept the startup
@@ -795,7 +797,7 @@ public sealed partial class AgentEngine : IDisposable
         timeout.CancelAfter(TimeSpan.FromMinutes(3));
         try
         {
-            await foreach (string chunk in ollama.ChatStreamAsync(model, messages, timeout.Token).ConfigureAwait(false))
+            await foreach (string chunk in ollama.ChatStreamAsync(model, messages, timeout.Token, ContextLength).ConfigureAwait(false))
             {
                 buffer.Append(chunk);
                 if (buffer.Length > 48000)

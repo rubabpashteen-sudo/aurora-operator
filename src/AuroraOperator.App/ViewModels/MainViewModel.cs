@@ -235,7 +235,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public AgentEngine? Engine
     {
         get => _engine;
-        set => SetProperty(ref _engine, value);
+        set
+        {
+            if (SetProperty(ref _engine, value) && value is not null)
+                value.ContextLength = ContextLength;
+        }
     }
 
     public string AppDataPath => _appDataDir;
@@ -321,7 +325,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         get => _modelManager.ContextLength;
         set
         {
-            _modelManager.ContextLength = value;
+            _modelManager.ContextLength = Math.Clamp(value, 2048, 16384);
+            if (_engine is not null) _engine.ContextLength = _modelManager.ContextLength;
             OnPropertyChanged();
         }
     }

@@ -231,7 +231,7 @@ public sealed class OllamaClient : IDisposable
     /// 4xx responses fail immediately. A 404 whose body says the model is
     /// not installed throws <see cref="ModelNotFoundException"/> instead of
     /// a generic failure, so callers can fall back to an installed model.</summary>
-    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct, bool structured = false)
+    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct, bool structured = false, int contextLength = 8192)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         var payload = new Dictionary<string, object>
@@ -244,7 +244,7 @@ public sealed class OllamaClient : IDisposable
         {
             payload["format"] = "json";
             payload["think"] = false;
-            payload["options"] = new { temperature = 0, num_predict = 2400, num_ctx = 8192 };
+            payload["options"] = new { temperature = 0, num_predict = 2400, num_ctx = Math.Clamp(contextLength, 2048, 16384) };
         }
         var body = await WithRetryAsync(async token =>
         {
@@ -299,7 +299,7 @@ public sealed class OllamaClient : IDisposable
     }
 
     /// <summary>Streaming chat: yields each content delta as it arrives (NDJSON lines).</summary>
-    public async IAsyncEnumerable<string> ChatStreamAsync(string model, IEnumerable<ChatMessage> messages, [EnumeratorCancellation] CancellationToken ct)
+    public async IAsyncEnumerable<string> ChatStreamAsync(string model, IEnumerable<ChatMessage> messages, [EnumeratorCancellation] CancellationToken ct, int contextLength = 8192)
     {
         var payload = new
         {
@@ -307,7 +307,7 @@ public sealed class OllamaClient : IDisposable
             messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
             stream = true,
             think = false,
-            options = new { num_predict = 4096, num_ctx = 8192 },
+            options = new { num_predict = 4096, num_ctx = Math.Clamp(contextLength, 2048, 16384) },
         };
         using var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "/api/chat")
         {

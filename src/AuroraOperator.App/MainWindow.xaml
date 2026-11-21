@@ -32,7 +32,7 @@
 
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
       <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="#14161A" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="14,8" />
       <Setter Property="FontSize" Value="13" />
@@ -85,7 +85,7 @@
       <Style.Triggers>
         <Trigger Property="IsChecked" Value="True">
           <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-          <Setter Property="Foreground" Value="#14161A" />
+          <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
         </Trigger>
       </Style.Triggers>
     </Style>
@@ -300,7 +300,7 @@
                 <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center"
                          Fill="{Binding Status, Converter={StaticResource StepStatusToBrushConverter}}" />
                 <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                  <TextBlock Text="{Binding Title}" FontSize="13" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextBrush}" FontSize="13" TextWrapping="Wrap" />
                   <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap">
                     <Run Text="{Binding ToolName}" />
                     <Run Text=" — " />
@@ -428,7 +428,7 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate>
                       <StackPanel Margin="0,0,0,10">
-                        <TextBlock Text="{Binding UserRequest}" TextWrapping="Wrap" FontSize="13" />
+                        <TextBlock Text="{Binding UserRequest}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" FontSize="13" />
                         <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}">
                           <Run Text="{Binding State}" />
                           <Run Text=" · " />
@@ -598,10 +598,10 @@
                            TextWrapping="Wrap" Text="{Binding OllamaBaseUrl, StringFormat='Server: {0}'}" />
                 <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" Text="{Binding OllamaStatus}" />
-                <TextBlock Margin="0,16,0,0" FontSize="13" Text="Model context length" FontWeight="SemiBold" />
+                <TextBlock Margin="0,16,0,0" FontSize="13" Text="Model context (2,048–16,384 tokens)" FontWeight="SemiBold" />
                 <TextBox Margin="0,8,0,0" Width="120" HorizontalAlignment="Left"
                          Style="{StaticResource InputTextBoxStyle}"
-                         Text="{Binding ContextLength, UpdateSourceTrigger=PropertyChanged}" />
+                         Text="{Binding ContextLength, UpdateSourceTrigger=LostFocus}" />
                 <TextBlock Margin="0,16,0,0" FontSize="13" Text="Local data · unencrypted transcripts and task history" FontWeight="SemiBold" />
                 <TextBlock Margin="0,8,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" Text="{Binding AppDataPath}" />
