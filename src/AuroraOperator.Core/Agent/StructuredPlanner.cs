@@ -15,7 +15,7 @@ internal sealed class StructuredPlanner
         _generate = generate;
     }
 
-    internal sealed record Batch(IReadOnlyList<PlanStep> Steps, bool Continue);
+    internal sealed record Batch(IReadOnlyList<PlanStep> Steps, bool Continue, bool IsOfflineFallback = false);
 
     internal async Task<Batch?> PlanAsync(string request, IReadOnlyList<object> observations, int offset,
         bool allowContinuation, CancellationToken ct)
@@ -75,7 +75,7 @@ internal sealed class StructuredPlanner
             "find workspace duplicates" => """{"calls":[{"tool":"duplicates","args":{"path":"."}}],"continue":false}""",
             _ => null
         };
-        return fallback is null ? null : Parse(fallback, 0);
+        return fallback is null ? null : Parse(fallback, 0) with { IsOfflineFallback = true };
     }
 
     internal Batch Parse(string output, int offset)

@@ -29,6 +29,8 @@ public sealed partial class AgentEngine
         var steps = new List<PlanStep>();
         var attempted = new HashSet<string>(StringComparer.Ordinal);
         var observations = new List<object>();
+        string? fallbackNotice = null;
+        bool usedOfflineFallback = false;
 
         try
         {
@@ -46,7 +48,6 @@ public sealed partial class AgentEngine
             }
 
             string model = SessionFallbackModel ?? _model;
-            string? fallbackNotice = null;
             var planner = new StructuredPlanner(task.WorkspacePath, async (messages, token) =>
             {
                 if (_ollama is null)
@@ -84,13 +85,16 @@ public sealed partial class AgentEngine
                         : "Aurora could not validate a follow-up plan.");
                     break;
                 }
+                usedOfflineFallback |= batch.IsOfflineFallback;
                 steps.AddRange(batch.Steps);
                 if (task.Mode == AgentMode.Plan && reviewed is null)
                 {
                     task.State = TaskState.WaitingApproval;
                     _reviewablePlans.Add(task, new TaskPlan(plan.TaskId, plan.UserRequest, plan.Language,
                         Array.AsReadOnly(steps.ToArray()), plan.Summary));
-                    task.FinalReport = $"{fallbackNotice}\n{plan.Summary}\nReview these steps in the task panel, then choose Run plan. Actions that change files or open Notepad also require individual approval.";
+                    var origin = usedOfflineFallback ? "\nThis preview uses the deterministic read-only fallback." : "";
+                    var notice = fallbackNotice is null ? "" : fallbackNotice + "\n";
+                    task.FinalReport = $"{notice}{plan.Summary}{origin}\nReview these steps in the task panel, then choose Run plan. Actions that change files or open Notepad also require individual approval.";
                     return task;
                 }
 
@@ -175,6 +179,8 @@ public sealed partial class AgentEngine
         }
 
         var lines = new List<string> { $"Task {task.State.ToString().ToLowerInvariant()} in {task.WorkspacePath}." };
+        if (fallbackNotice is not null) lines.Add(fallbackNotice);
+        if (usedOfflineFallback) lines.Add("Used the deterministic read-only fallback because the local model could not produce a valid plan.");
         lines.AddRange(completed.Select(message => "- " + message));
         lines.AddRange(failed.Select(message => "- " + message));
         task.FinalReport = string.Join("\n", lines);
