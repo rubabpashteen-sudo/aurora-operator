@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <AssemblyName>AuroraOperator</AssemblyName>
+    <RootNamespace>AuroraOperator.App</RootNamespace>
+    <ApplicationIcon>Assets\aurora.ico</ApplicationIcon>
+    <Version>0.2.0</Version>
+    <Authors>Aurora Operator</Authors>
+    <Description>Aurora Operator — a local-first Windows desktop AI agent powered by Ollama.</Description>
+  </PropertyGroup>
+
+  <!--
+    No third-party packages are referenced here on purpose.
+    The UI is plain WPF (no WebView2): the whole interface is native XAML,
+    so there is no embedded browser runtime to download, update, or keep
+    patched, no extra ~150 MB WebView2 runtime dependency, and no web
+    content running inside a desktop agent that holds file-system and
+    automation permissions. Everything the UI needs is in the .NET 8
+    WPF framework plus AuroraOperator.Core.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuroraOperator.Core\AuroraOperator.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Page/ApplicationDefinition items are globbed by the SDK by default; do not list them explicitly (NETSDK1022). -->
+
+  <ItemGroup>
+    <Resource Include="Assets\aurora.ico" />
+    <Resource Include="Assets\aurora.png" />
+  </ItemGroup>
+
+  <!--
+    Phase 8 (publish size): the Microsoft.Playwright package ships a
+    `.playwright` driver folder containing a Node.js runtime for every
+    platform (linux-x64, win32_x64, ...). On a win-x64 publish the
+    Linux Node runtime (~115 MB) is dead weight: the Playwright .NET
+    driver only ever executes the node binary matching the OS it runs
+    on (win32_x64/node.exe on Windows). This target removes the
+    non-Windows node runtimes from the publish output only — the
+    win32_x64 node and the whole `.playwright/package` (the JS driver)
+    are kept. The check is done on the resolved publish items, never
+    by hand-deleting files from publish/. Both separator styles are
+    handled because the publish runs on Linux (forward slashes) for a
+    Windows target. Verified by re-publishing and comparing sizes and
+    contents (see PHASE8_REPORT.md); the Windows runtime re-check is
+    still a first-Windows-test item.
+  -->
+  <Target Name="RemoveNonWindowsPlaywrightNodeFromPublish"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Contains('.playwright/node/linux-'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Contains('.playwright\node\linux-'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

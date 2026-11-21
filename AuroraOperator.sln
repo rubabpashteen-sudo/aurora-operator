@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{59F6C90E-A631-4E14-BD66-23F43107B38B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuroraOperator.Core", "src\AuroraOperator.Core\AuroraOperator.Core.csproj", "{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuroraOperator.App", "src\AuroraOperator.App\AuroraOperator.App.csproj", "{59484424-487D-4832-899B-63FFDDEDEC65}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0F97FEA9-568A-4244-9EB5-6397F873233A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuroraOperator.Tests", "tests\AuroraOperator.Tests\AuroraOperator.Tests.csproj", "{443D0EB8-F57C-402E-8CE3-491775B7878D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuroraOperator.TestRunner", "tests\AuroraOperator.TestRunner\AuroraOperator.TestRunner.csproj", "{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{59484424-487D-4832-899B-63FFDDEDEC65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59484424-487D-4832-899B-63FFDDEDEC65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59484424-487D-4832-899B-63FFDDEDEC65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59484424-487D-4832-899B-63FFDDEDEC65}.Release|Any CPU.Build.0 = Release|Any CPU
+		{443D0EB8-F57C-402E-8CE3-491775B7878D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{443D0EB8-F57C-402E-8CE3-491775B7878D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{443D0EB8-F57C-402E-8CE3-491775B7878D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{443D0EB8-F57C-402E-8CE3-491775B7878D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{EA2A5FDB-8BDB-43FC-B367-A976A494B6E1} = {59F6C90E-A631-4E14-BD66-23F43107B38B}
+		{59484424-487D-4832-899B-63FFDDEDEC65} = {59F6C90E-A631-4E14-BD66-23F43107B38B}
+		{443D0EB8-F57C-402E-8CE3-491775B7878D} = {0F97FEA9-568A-4244-9EB5-6397F873233A}
+		{4FA14DCD-7C0E-4ED2-B2C1-F85B27A051BB} = {0F97FEA9-568A-4244-9EB5-6397F873233A}
+	EndGlobalSection
+EndGlobal

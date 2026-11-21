@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Shared build properties for Aurora Operator (Phase 7).
+    Single source of truth for the product version: 0.2.0.
+    The App csproj repeats the same Version value; the two must stay equal.
+    Installer scripts (AuroraOperator.nsi / InnoSetup.iss) carry their own
+    APP_VERSION / AppVersion defines and are updated by the installer
+    integrator — see BUILD_AUDIT.md.
+  -->
+  <PropertyGroup>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+</Project>
