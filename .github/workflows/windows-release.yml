@@ -1,0 +1,66 @@
+name: Windows build and release candidate
+
+on:
+  push:
+    branches: [main, 'codex/windows-agent-overhaul']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate application resources
+        working-directory: src/AuroraOperator.App/Assets
+        run: python build-icon.py
+      - name: Build solution
+        run: dotnet build AuroraOperator.sln -c Release
+      - name: Run official tests
+        shell: pwsh
+        run: |
+          dotnet test tests/AuroraOperator.Tests -c Release --no-build --logger "trx;LogFileName=windows.trx" --results-directory test-results
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          [xml]$trx = Get-Content test-results/windows.trx
+          if ([int]$trx.TestRun.ResultSummary.Counters.executed -lt 1) { throw 'No tests executed.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-test-results
+          path: test-results/
+          if-no-files-found: warn
+      - name: Package Windows x64
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress --yes
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $compiler = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          ./scripts/Build-WindowsRelease.ps1 -MakeNsis $compiler
+      - name: Smoke test installation and uninstallation
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'Aurora RC install'
+          $setup = (Get-ChildItem release-output/*Setup*.exe).FullName
+          $process = Start-Process $setup -ArgumentList "/S", "/D=$install" -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -or !(Test-Path "$install/AuroraOperator.exe")) { throw "Setup failed: $($process.ExitCode)" }
+          $marker = Join-Path $install 'user-created.txt'
+          Set-Content -LiteralPath $marker -Value 'uninstall must keep this'
+          $process = Start-Process "$install/Uninstall.exe" -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -or (Test-Path "$install/AuroraOperator.exe") -or !(Test-Path $marker)) {
+            throw "Uninstall did not remove exactly the expected files."
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AuroraOperator-win-x64
+          path: release-output/
+          if-no-files-found: error
