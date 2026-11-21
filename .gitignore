@@ -28,3 +28,8 @@ src/AuroraOperator.Installer/*.exe
 *.sqlite
 *.sqlite3
 *.sqlite-journal
+
+# Generated test and release output
+TestResults/
+test-results/
+release-output/

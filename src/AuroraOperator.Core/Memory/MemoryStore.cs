@@ -37,7 +37,8 @@ public sealed class MemoryStore : IDisposable
             Directory.CreateDirectory(directory);
         }
 
-        _connection = new SqliteConnection($"Data Source={dbPath}");
+        var connectionString = new SqliteConnectionStringBuilder { DataSource = dbPath, Pooling = false };
+        _connection = new SqliteConnection(connectionString.ToString());
         _connection.Open();
         CreateTables();
         RestrictDatabaseFileAccess(dbPath);
@@ -113,11 +114,38 @@ public sealed class MemoryStore : IDisposable
                     updated_at TEXT NOT NULL
                 );
                 """;
+
             cmd.ExecuteNonQuery();
+            MigrateTaskHistory();
         }
     }
 
     /// <summary>True when a key must never be stored (password/secret/token/key).</summary>
+    private void MigrateTaskHistory()
+    {
+        using var transaction = _connection.BeginTransaction();
+        using var command = _connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "PRAGMA table_info(tasks);";
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var reader = command.ExecuteReader())
+            while (reader.Read()) columns.Add(reader.GetString(1));
+
+        if (!columns.Contains("conversation_id"))
+        {
+            command.CommandText = "ALTER TABLE tasks ADD COLUMN conversation_id TEXT;";
+            command.ExecuteNonQuery();
+        }
+        if (!columns.Contains("workspace_path"))
+        {
+            command.CommandText = "ALTER TABLE tasks ADD COLUMN workspace_path TEXT;";
+            command.ExecuteNonQuery();
+        }
+        command.CommandText = "CREATE INDEX IF NOT EXISTS tasks_by_conversation ON tasks(conversation_id, created_at);";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
     public static bool IsSensitiveKey(string? key)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -308,6 +336,8 @@ public sealed class MemoryStore : IDisposable
             {
                 State = state,
                 FinalReport = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ConversationId = reader.IsDBNull(6) ? null : reader.GetString(6),
+                WorkspacePath = reader.IsDBNull(7) ? null : reader.GetString(7),
             };
         }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidCastException or FormatException)
@@ -328,14 +358,16 @@ public sealed class MemoryStore : IDisposable
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO tasks (task_id, user_request, language, mode, state, final_report, created_at, updated_at)
-                VALUES ($id, $request, $language, $mode, $state, $report, $now, $now)
+                INSERT INTO tasks (task_id, user_request, language, mode, state, final_report, created_at, updated_at, conversation_id, workspace_path)
+                VALUES ($id, $request, $language, $mode, $state, $report, $now, $now, $conversation, $workspace)
                 ON CONFLICT(task_id) DO UPDATE SET
                     user_request = excluded.user_request,
                     language = excluded.language,
                     mode = excluded.mode,
                     state = excluded.state,
                     final_report = excluded.final_report,
+                    conversation_id = excluded.conversation_id,
+                    workspace_path = excluded.workspace_path,
                     updated_at = excluded.updated_at;
                 """;
             cmd.Parameters.AddWithValue("$id", task.TaskId);
@@ -344,6 +376,8 @@ public sealed class MemoryStore : IDisposable
             cmd.Parameters.AddWithValue("$mode", task.Mode.ToString());
             cmd.Parameters.AddWithValue("$state", task.State.ToString());
             cmd.Parameters.AddWithValue("$report", (object?)task.FinalReport ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$conversation", (object?)task.ConversationId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$workspace", (object?)task.WorkspacePath ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("o"));
             cmd.ExecuteNonQuery();
         }
@@ -373,7 +407,7 @@ public sealed class MemoryStore : IDisposable
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                SELECT task_id, user_request, language, mode, state, final_report
+                SELECT task_id, user_request, language, mode, state, final_report, conversation_id, workspace_path
                 FROM tasks WHERE task_id = $id;
                 """;
             cmd.Parameters.AddWithValue("$id", taskId);
@@ -402,7 +436,7 @@ public sealed class MemoryStore : IDisposable
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                SELECT task_id, user_request, language, mode, state, final_report
+                SELECT task_id, user_request, language, mode, state, final_report, conversation_id, workspace_path
                 FROM tasks ORDER BY updated_at DESC LIMIT $n;
                 """;
             cmd.Parameters.AddWithValue("$n", n);
@@ -419,6 +453,53 @@ public sealed class MemoryStore : IDisposable
             }
 
             return results;
+        }
+    }
+
+    public IReadOnlyList<AgentTask> SearchTaskHistory(string query) => ReadHistory("""
+        WITH matching AS (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY COALESCE(conversation_id, task_id)
+                ORDER BY updated_at DESC) AS rank
+            FROM tasks WHERE instr(lower(user_request || ' ' || coalesce(final_report, '')), lower($value)) > 0
+                OR $value = ''
+        )
+        SELECT task_id, user_request, language, mode, state, final_report, conversation_id, workspace_path
+        FROM matching WHERE rank = 1 ORDER BY updated_at DESC LIMIT 50;
+        """, query);
+
+    public IReadOnlyList<AgentTask> ReadConversationTasks(string conversationId) => ReadHistory("""
+        SELECT task_id, user_request, language, mode, state, final_report, conversation_id, workspace_path
+        FROM tasks WHERE conversation_id = $value OR (conversation_id IS NULL AND task_id = $value)
+        ORDER BY created_at, task_id;
+        """, conversationId);
+
+    private IReadOnlyList<AgentTask> ReadHistory(string sql, string value)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("$value", value);
+            using var reader = command.ExecuteReader();
+            var result = new List<AgentTask>();
+            while (reader.Read())
+                if (TryReadTask(reader) is { } task) result.Add(task);
+            return result;
+        }
+    }
+
+    public void ClearHistory()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            using var transaction = _connection.BeginTransaction();
+            using var command = _connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "DELETE FROM conversations; DELETE FROM tasks;";
+            command.ExecuteNonQuery();
+            transaction.Commit();
         }
     }
 

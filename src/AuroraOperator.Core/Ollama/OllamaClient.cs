@@ -30,7 +30,10 @@ public sealed class OllamaClient : IDisposable
         BaseUrl = (baseUrl ?? DefaultBaseUrl).TrimEnd('/');
         ValidateLoopbackOnly(BaseUrl);
         _ownsClient = http is null;
-        _http = http ?? new HttpClient { Timeout = timeout ?? TimeSpan.FromSeconds(120) };
+        _http = http ?? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false })
+        {
+            Timeout = timeout ?? TimeSpan.FromSeconds(120),
+        };
         if (http is not null && timeout.HasValue) _http.Timeout = timeout.Value;
     }
 
@@ -62,7 +65,10 @@ public sealed class OllamaClient : IDisposable
     }
 
     public OllamaClient(HttpMessageHandler handler, string baseUrl = DefaultBaseUrl)
-        : this(new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(120) }, baseUrl) { }
+        : this(new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(120) }, baseUrl)
+    {
+        _ownsClient = true;
+    }
 
     /// <summary>True when the local Ollama service answers GET /api/tags.
     /// Single attempt on purpose: this is a health probe, and retrying it
@@ -225,15 +231,21 @@ public sealed class OllamaClient : IDisposable
     /// 4xx responses fail immediately. A 404 whose body says the model is
     /// not installed throws <see cref="ModelNotFoundException"/> instead of
     /// a generic failure, so callers can fall back to an installed model.</summary>
-    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct)
+    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct, bool structured = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
-        var payload = new
+        var payload = new Dictionary<string, object>
         {
-            model,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
-            stream = false,
+            ["model"] = model,
+            ["messages"] = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
+            ["stream"] = false,
         };
+        if (structured)
+        {
+            payload["format"] = "json";
+            payload["think"] = false;
+            payload["options"] = new { temperature = 0, num_predict = 2400, num_ctx = 8192 };
+        }
         var body = await WithRetryAsync(async token =>
         {
             using var resp = await _http.PostAsJsonAsync(BaseUrl + "/api/chat", payload, JsonOptions, token).ConfigureAwait(false);
@@ -294,6 +306,8 @@ public sealed class OllamaClient : IDisposable
             model,
             messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
             stream = true,
+            think = false,
+            options = new { num_predict = 4096, num_ctx = 8192 },
         };
         using var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "/api/chat")
         {
@@ -308,23 +322,28 @@ public sealed class OllamaClient : IDisposable
             if (IsModelNotFoundBody(errorBody))
                 throw new ModelNotFoundException(model, $"Ollama /api/chat failed (404): {errorBody}");
         }
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            string message = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            throw new HttpRequestException($"Ollama chat returned HTTP {(int)resp.StatusCode}: " +
+                (message.Length <= 600 ? message : message[..600] + "…"));
+        }
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8);
         while (await reader.ReadLineAsync(ct).ConfigureAwait(false) is string line)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            string? delta = null;
-            try
-            {
-                using var doc = JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("message", out var msg) &&
-                    msg.TryGetProperty("content", out var content))
-                    delta = content.GetString();
-            }
-            catch (JsonException) { continue; }
-            if (!string.IsNullOrEmpty(delta)) yield return delta;
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var error))
+                throw new HttpRequestException("Ollama stream failed: " + error.GetString());
+            if (root.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var content) &&
+                content.GetString() is { Length: > 0 } delta)
+                yield return delta;
+            if (root.TryGetProperty("done", out var done) && done.ValueKind == JsonValueKind.True)
+                yield break;
         }
+        throw new HttpRequestException("Ollama disconnected before completing the response.");
     }
 
     /// <summary>Pulls a model, reporting fractional progress (0..1) when Ollama reports totals.</summary>

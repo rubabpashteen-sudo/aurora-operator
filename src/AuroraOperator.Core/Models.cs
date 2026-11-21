@@ -25,6 +25,7 @@ public sealed record PlanStep(string Id, string Title, string ToolName, string D
 {
     public StepStatus Status { get; set; } = StepStatus.Pending;
     public string? ResultSummary { get; set; }
+    internal Agent.WorkspaceTools.Tool? WorkspaceTool { get; init; }
 
     /// <summary>
     /// Structured machine-readable arguments for this step (action, path,
@@ -45,6 +46,9 @@ public sealed record TaskPlan(string TaskId, string UserRequest, Language Langua
 public sealed record AgentTask(string TaskId, string UserRequest, Language Language, AgentMode Mode)
 {
     public TaskState State { get; set; } = TaskState.Created;
+    public string? WorkspacePath { get; init; }
+    public string? ConversationId { get; init; }
+    public IReadOnlyList<Ollama.ChatMessage> ChatHistory { get; init; } = [];
     public TaskPlan? Plan { get; set; }
     public List<string> Log { get; } = new();
     public List<string> Artifacts { get; } = new();

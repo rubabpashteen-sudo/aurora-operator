@@ -81,9 +81,9 @@ public sealed class Phase7IntegrationTests : IDisposable
         // honoured: validation passes, so the attempt reaches the
         // (missing) browser and fails honestly about Chromium instead
         // of being refused at the path check.
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "aurora-phase7int-" + Guid.NewGuid().ToString("N"));
+        string baseDir = BrowserTools.IsInsideUserProfile(Path.GetTempPath(), out _)
+            ? Path.GetTempPath() : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var dir = Path.Combine(baseDir, "aurora-phase7int-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {
@@ -108,12 +108,13 @@ public sealed class Phase7IntegrationTests : IDisposable
     public async Task ExecuteAsync_Download_DirectoryOutsideProfile_IsRefused()
     {
         var tool = new BrowserTools();
+        string outside = OutsideProfile();
         var result = await tool.ExecuteAsync(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["action"] = "download",
             ["url"] = "https://example.com/file.zip",
-            ["outputPath"] = Path.Combine(_root, "file.zip"),
-            ["downloadDirectory"] = _root,
+            ["outputPath"] = Path.Combine(outside, "file.zip"),
+            ["downloadDirectory"] = outside,
         }, CancellationToken.None);
         Assert.False(result.Success);
         Assert.Contains("refused", result.Summary, StringComparison.OrdinalIgnoreCase);
@@ -132,11 +133,10 @@ public sealed class Phase7IntegrationTests : IDisposable
     public void IsInsideUserProfile_OutsideProfile_And_Nul_Rejected()
     {
         Assert.False(BrowserTools.IsInsideUserProfile("/etc", out _));
-        Assert.False(BrowserTools.IsInsideUserProfile(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar), out _)
-            || Path.GetTempPath().StartsWith(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                StringComparison.Ordinal));
+        Assert.False(BrowserTools.IsInsideUserProfile(OutsideProfile(), out _));
         Assert.False(BrowserTools.IsInsideUserProfile("bad\0dir", out _));
         Assert.False(BrowserTools.IsInsideUserProfile(null, out _));
     }
+
+    private static string OutsideProfile() => OperatingSystem.IsWindows() ? Environment.SystemDirectory : "/etc";
 }

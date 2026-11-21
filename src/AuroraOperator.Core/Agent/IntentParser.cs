@@ -18,7 +18,7 @@ public sealed record UserIntent(
 public static class IntentParser
 {
     private static readonly Regex PathRegex = new(
-        @"(?:[A-Za-z]:\\|\/|\~\/)[^\s""'<>|]+",
+        @"[A-Za-z]:\\(?:[^\\\r\n""'<>|]+\\)*[^\s""'<>|]+|(?:\/|\~\/)[^\s""'<>|]+",
         RegexOptions.Compiled);
 
     private static readonly Regex FileNameRegex = new(
@@ -192,7 +192,7 @@ public static class IntentParser
             lower.Contains("on the internet") || lower.Contains("web search"));
         Add("python",
             lower.Contains("python") || lower.Contains("pytest") || lower.Contains("run tests") ||
-            lower.Contains("run the tests") || lower.Contains("project") || lower.Contains("code") ||
+            lower.Contains("run the tests") || Regex.IsMatch(lower, @"\b(?:project|code)\b") ||
             lower.Contains("script"));
         Add("diagnostics",
             lower.Contains("slow") || lower.Contains("diagnos") || lower.Contains("performance") ||
@@ -263,6 +263,9 @@ public static class IntentParser
             var afterVerb = text[(verbIndex + WriteVerbLength(text, verbIndex))..];
             // 2. Colon form: "write ... : <text>" / "写：<text>".
             var colon = afterVerb.IndexOfAny(new[] { ':', '：' });
+            if (colon > 0 && afterVerb[colon] == ':' && colon + 1 < afterVerb.Length &&
+                char.IsAsciiLetter(afterVerb[colon - 1]) && afterVerb[colon + 1] == '\\')
+                colon = -1;
             if (colon >= 0)
                 remainder = afterVerb[(colon + 1)..];
             else

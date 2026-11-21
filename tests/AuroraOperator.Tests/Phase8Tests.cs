@@ -359,9 +359,11 @@ public sealed class Phase8Tests : IDisposable
     [Fact]
     public void MemoryStore_Preference_RoundTrips_ThroughProtection()
     {
-        using var store = new MemoryStore(Path.Combine(_root, "mem.db"));
-        store.SetPreference("theme", "dark");
-        Assert.Equal("dark", store.GetPreference("theme"));
+        using (var store = new MemoryStore(Path.Combine(_root, "mem.db")))
+        {
+            store.SetPreference("theme", "dark");
+            Assert.Equal("dark", store.GetPreference("theme"));
+        }
         // The stored form on disk is protected, not the raw value.
         var raw = File.ReadAllBytes(Path.Combine(_root, "mem.db"));
         var text = System.Text.Encoding.UTF8.GetString(raw);

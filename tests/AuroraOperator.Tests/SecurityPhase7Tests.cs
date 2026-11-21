@@ -126,7 +126,7 @@ public sealed class SecurityPhase7Tests
         // rejecting service the step must not execute. The target file
         // already exists, so the write is SensitiveFileModification and
         // the approval gate applies.
-        const string path = "/tmp/phase7-forged.txt";
+        var path = Path.Combine(Path.GetTempPath(), $"phase7-forged-{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, "original");
         try
         {
