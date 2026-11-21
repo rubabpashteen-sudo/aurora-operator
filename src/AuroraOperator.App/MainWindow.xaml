@@ -3,344 +3,193 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:AuroraOperator.Core;assembly=AuroraOperator.Core"
         xmlns:app="clr-namespace:AuroraOperator.App"
-        Title="Aurora Operator" Width="1100" Height="720" WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True"
-        MinWidth="720" MinHeight="520"
-        Icon="Assets/aurora.ico"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource TextBrush}">
+        Title="Aurora Operator · RC 2" Width="1240" Height="800" MinWidth="730" MinHeight="540"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text, Segoe UI"
+        UseLayoutRounding="True" Icon="Assets/aurora.ico"
+        Background="{DynamicResource WindowBackgroundBrush}" Foreground="{DynamicResource TextBrush}">
   <Window.Resources>
-    <app:StepStatusToBrushConverter x:Key="StepStatusToBrushConverter" />
-
-    <Style x:Key="NavButtonStyle" TargetType="Button">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Left" />
-      <Setter Property="Padding" Value="12,9" />
-      <Setter Property="Margin" Value="0,1" />
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-          <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-
-    <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="14,8" />
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Cursor" Value="Hand" />
-    </Style>
-
-    <Style x:Key="TopBarButtonStyle" TargetType="Button">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="Padding" Value="10,5" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-          <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-
-    <Style x:Key="ActionButtonStyle" TargetType="Button">
-      <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="Padding" Value="12,7" />
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Trigger>
-        <Trigger Property="IsEnabled" Value="False">
-          <Setter Property="Opacity" Value="0.45" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-
-    <Style x:Key="ToggleButtonStyle" TargetType="ToggleButton">
-      <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="Padding" Value="12,7" />
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Style.Triggers>
-        <Trigger Property="IsChecked" Value="True">
-          <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-          <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-
-    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="Margin" Value="0,0,0,8" />
-    </Style>
-
-    <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
-      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="12,10" />
-      <Setter Property="FontSize" Value="14" />
-      <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
-    </Style>
+    <app:StepStatusToBrushConverter x:Key="StepStatusToBrushConverter"/>
   </Window.Resources>
-
-  <Grid>
-    <Grid.RowDefinitions>
-      <RowDefinition Height="52" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="28" />
-    </Grid.RowDefinitions>
-
-    <!-- ============ Top bar ============ -->
-    <Grid Grid.Row="0" Background="{DynamicResource TopBarBrush}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-
-      <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-        <TextBlock FontSize="15" FontWeight="Bold" VerticalAlignment="Center">
-          <Run Foreground="{DynamicResource AccentBrush}" Text="AURORA" />
-          <Run Text=" OPERATOR" />
-        </TextBlock>
-        <Border Margin="14,0,0,0" Padding="8,3" CornerRadius="4"
-                Background="{DynamicResource SurfaceMutedBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                VerticalAlignment="Center">
-          <TextBlock FontSize="12" Text="{Binding CurrentModel}" />
-        </Border>
-      </StackPanel>
-
-      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Ellipse Width="9" Height="9" VerticalAlignment="Center">
-          <Ellipse.Style>
-            <Style TargetType="Ellipse">
-              <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
-              <Style.Triggers>
-                <DataTrigger Binding="{Binding IsOllamaAvailable}" Value="True">
-                  <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </Ellipse.Style>
-        </Ellipse>
-        <TextBlock Margin="8,0,0,0" FontSize="12" VerticalAlignment="Center"
-                   Text="Local AI" />
-        <TextBlock Margin="16,0,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
-                   VerticalAlignment="Center" Text="{Binding OllamaStatus}" />
-        <TextBlock Margin="16,0,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
-                   VerticalAlignment="Center"
-                   Text="{Binding MemoryUsageMB, StringFormat='RAM {0} MB'}" />
-      </StackPanel>
-
-      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0"
-                  WindowChrome.IsHitTestVisibleInChrome="True">
-        <Button Command="{Binding ToggleThemeCommand}">
-          <Button.Style>
-            <Style TargetType="Button" BasedOn="{StaticResource TopBarButtonStyle}">
-              <Setter Property="Content" Value="Light theme" />
-              <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDarkTheme}" Value="False">
-                  <Setter Property="Content" Value="Dark theme" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </Button.Style>
-        </Button>
-        <Button Content="Navigation" Margin="8,0,0,0" Style="{StaticResource TopBarButtonStyle}"
-                Click="ToggleNavigation" ToolTip="Show or hide navigation" />
-        <Button Content="Details" Margin="8,0,0,0" Style="{StaticResource TopBarButtonStyle}"
-                Click="ToggleInspector" ToolTip="Show or hide workspace details" />
-      </StackPanel>
-    </Grid>
-
-    <!-- ============ Main area ============ -->
-    <Grid Grid.Row="1">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition x:Name="NavigationColumn" Width="198" />
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition x:Name="InspectorColumn" Width="300" />
-      </Grid.ColumnDefinitions>
-
-      <!-- Left sidebar -->
-      <Border x:Name="NavigationPanel" Grid.Column="0" Background="{DynamicResource SidebarBrush}"
-              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,1,0">
-        <Grid>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-          </Grid.RowDefinitions>
-          <Button Grid.Row="0" Content="New conversation" Margin="12,12,12,6" Height="38"
-                  Style="{StaticResource PrimaryButtonStyle}" Command="{Binding NewTaskCommand}" />
-          <StackPanel Grid.Row="1" Margin="8,4">
-            <Button Content="Conversations" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Recent" />
-            <Button Content="Workspace" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Projects" />
-            <Button Content="Files" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Files" />
-            <Button Content="Memory" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Memory" />
-            <Button Content="Model Manager" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="ModelManager" />
-            <Button Content="Activity" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Activity" />
-            <Button Content="Settings" Style="{StaticResource NavButtonStyle}"
-                    Command="{Binding SwitchPanelCommand}" CommandParameter="Settings" />
-          </StackPanel>
-          <TextBlock Grid.Row="2" Margin="16,0,16,14" FontSize="11"
-                     Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
-                     Text="Local inference via Ollama" />
-        </Grid>
-      </Border>
-
-      <!-- Centre: chat + plan -->
-      <Grid Grid.Column="1" Background="{DynamicResource WindowBackgroundBrush}">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="4" />
-        </Grid.RowDefinitions>
-
-        <ScrollViewer x:Name="ConversationScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,20,24,8" ScrollChanged="ConversationScroll_ScrollChanged">
-          <Grid MaxWidth="840">
-          <ItemsControl ItemsSource="{Binding Messages}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Border CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
-                  <Border.Style>
-                    <Style TargetType="Border">
-                      <Setter Property="Background" Value="{DynamicResource AgentMessageBrush}" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsUser}" Value="True">
-                          <Setter Property="Background" Value="{DynamicResource UserMessageBrush}" />
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Border.Style>
-                  <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                      <TextBlock FontSize="11" FontWeight="SemiBold"
-                                 Foreground="{DynamicResource AccentBrush}" Text="{Binding Role}" />
-                      <TextBlock Margin="8,0,0,0" FontSize="11" Foreground="{DynamicResource MutedBrush}"
-                                 Text="{Binding Timestamp, StringFormat='{}{0:HH:mm}'}" />
-                    </StackPanel>
-                    <TextBox Text="{Binding Content, Mode=OneWay}" IsReadOnly="True" IsTabStop="False"
-                             BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}"
-                             Padding="0" TextWrapping="Wrap" FontSize="14" />
-                    <Button Content="Copy" HorizontalAlignment="Right" Padding="7,3" Style="{StaticResource ActionButtonStyle}"
-                            Command="{Binding DataContext.CopyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                            CommandParameter="{Binding Content}" />
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-          </Grid>
-        </ScrollViewer>
-
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="24,4,24,8">
-          <StackPanel.Style>
-            <Style TargetType="StackPanel">
-              <Setter Property="Visibility" Value="Collapsed" />
-              <Style.Triggers><DataTrigger Binding="{Binding HasReviewPlan}" Value="True">
-                <Setter Property="Visibility" Value="Visible" />
-              </DataTrigger></Style.Triggers>
-            </Style>
-          </StackPanel.Style>
-          <Button Content="Run plan" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RunPlanCommand}" />
-          <Button Content="Discard" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Command="{Binding DiscardPlanCommand}" />
+  <Grid Background="{DynamicResource AtmosphereBrush}" Margin="0">
+    <Grid Margin="16,12,16,16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="54"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      <Grid Margin="1,0,1,10">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Width="38" Height="38" CornerRadius="12" Background="{DynamicResource AccentBrush}">
+            <Path Data="M 2,19 L 10,2 L 18,19 M 6,13 L 14,13" StrokeThickness="2.6" StrokeLineJoin="Round"
+                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stroke="{DynamicResource PrimaryButtonTextBrush}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <TextBlock Text="Aurora Operator" FontSize="20" FontWeight="SemiBold" Margin="11,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
-        <ListBox Grid.Row="2" Margin="24,0,24,8" MaxHeight="170" ItemsSource="{Binding PlanSteps}"
-                 Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                 AutomationProperties.Name="Execution steps" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-          <ListBox.Style>
-            <Style TargetType="ListBox"><Style.Triggers>
-              <DataTrigger Binding="{Binding PlanSteps.Count}" Value="0">
-                <Setter Property="Visibility" Value="Collapsed" />
-              </DataTrigger>
-            </Style.Triggers></Style>
-          </ListBox.Style>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid Margin="6,4">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="14" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center"
-                         Fill="{Binding Status, Converter={StaticResource StepStatusToBrushConverter}}" />
-                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                  <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextBrush}" FontSize="13" TextWrapping="Wrap" />
-                  <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap">
-                    <Run Text="{Binding ToolName}" />
-                    <Run Text=" — " />
-                    <Run Text="{Binding Description}" />
-                  </TextBlock>
-                  <TextBlock FontSize="11" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
-                             Text="{Binding ResultSummary}" />
-                </StackPanel>
-                <TextBlock Grid.Column="2" FontSize="12" Foreground="{DynamicResource MutedBrush}"
-                           VerticalAlignment="Center" Text="{Binding Status}" />
-              </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-
-        <ProgressBar Grid.Row="3" IsIndeterminate="True" Foreground="{DynamicResource AccentBrush}"
-                     Background="Transparent" BorderThickness="0">
-          <ProgressBar.Style>
-            <Style TargetType="ProgressBar">
-              <Setter Property="Visibility" Value="Collapsed" />
-              <Style.Triggers>
-                <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                  <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </ProgressBar.Style>
-        </ProgressBar>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Ellipse Width="7" Height="7" Margin="0,0,7,0" ToolTip="{Binding OllamaStatus}">
+            <Ellipse.Style><Style TargetType="Ellipse">
+              <Setter Property="Fill" Value="{DynamicResource WarningBrush}"/>
+              <Style.Triggers><DataTrigger Binding="{Binding IsOllamaAvailable}" Value="True">
+                <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+              </DataTrigger></Style.Triggers>
+            </Style></Ellipse.Style>
+          </Ellipse>
+          <TextBlock Text="{Binding CurrentModel}" Foreground="{DynamicResource MutedBrush}" FontSize="12" ToolTip="{Binding OllamaStatus}"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Content="Sidebar" Click="ToggleNavigation" Style="{StaticResource TopBarButtonStyle}" ToolTip="Toggle navigation"/>
+          <Button Content="Activity" Click="ToggleInspector" Margin="7,0,0,0" Style="{StaticResource TopBarButtonStyle}" ToolTip="Toggle details"/>
+        </StackPanel>
       </Grid>
 
-      <!-- Right panel -->
-      <Border x:Name="InspectorPanel" Grid.Column="2" Background="{DynamicResource SurfaceBrush}"
-              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,1,0,0">
+      <Grid Grid.Row="1">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition x:Name="NavigationColumn" Width="210"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition x:Name="InspectorColumn" Width="0"/>
+        </Grid.ColumnDefinitions>
+        <Border x:Name="NavigationPanel" Style="{StaticResource GlassPanel}" Margin="0,0,12,0" Padding="12">
+          <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top">
+              <Button Content="+  New conversation" Click="FocusComposer" Command="{Binding NewTaskCommand}"
+                      Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,0,17"/>
+              <TextBlock Text="WORKSPACE" Style="{StaticResource SectionHeaderStyle}" Margin="11,0,0,8"/>
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Bottom">
+              <Button Content="Theme" Command="{Binding ToggleThemeCommand}" Style="{StaticResource NavButtonStyle}"/>
+              <Button Content="Settings" Command="{Binding SwitchPanelCommand}" CommandParameter="Settings" Style="{StaticResource NavButtonStyle}"/>
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel>
+                <Button Content="Conversations" Command="{Binding SwitchPanelCommand}" CommandParameter="Recent" Style="{StaticResource NavButtonStyle}" ToolTip="Ctrl+F"/>
+                <Button Content="Workspace" Command="{Binding SwitchPanelCommand}" CommandParameter="Projects" Style="{StaticResource NavButtonStyle}"/>
+                <Button Content="Files" Command="{Binding SwitchPanelCommand}" CommandParameter="Files" Style="{StaticResource NavButtonStyle}"/>
+                <Button Content="Models" Command="{Binding SwitchPanelCommand}" CommandParameter="ModelManager" Style="{StaticResource NavButtonStyle}"/>
+                <Button Content="Task details" Command="{Binding SwitchPanelCommand}" CommandParameter="Task" Style="{StaticResource NavButtonStyle}"/>
+                <Button Content="Diagnostics" Command="{Binding SwitchPanelCommand}" CommandParameter="Activity" Style="{StaticResource NavButtonStyle}"/>
+                <Button Content="Local storage" Command="{Binding SwitchPanelCommand}" CommandParameter="Memory" Style="{StaticResource NavButtonStyle}"/>
+              </StackPanel>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+
+        <Border Grid.Column="1" Style="{StaticResource GlassPanel}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <ScrollViewer x:Name="ConversationScroll" Padding="22,20,22,8" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" ScrollChanged="ConversationScroll_ScrollChanged">
+              <Grid MaxWidth="850">
+                <StackPanel Margin="7,35,7,20" VerticalAlignment="Center" MaxWidth="620"
+                            Visibility="{Binding HasNoMessages, Converter={StaticResource BoolToVisibilityConverter}}">
+                  <TextBlock Text="What are we working on?" FontSize="34" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,9"/>
+                  <TextBlock Text="Ask a question, plan a change, or let Aurora take an approved action on your PC."
+                             FontSize="15" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,24"/>
+                  <WrapPanel>
+                    <Button Content="Open This PC" Tag="open my computer" Click="UseSuggestion" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
+                    <Button Content="Open Calculator" Tag="open calculator" Click="UseSuggestion" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
+                    <Button Content="Choose workspace" Command="{Binding ChooseWorkspaceCommand}" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
+                  </WrapPanel>
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Messages}" Visibility="{Binding HasMessages, Converter={StaticResource BoolToVisibilityConverter}}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border CornerRadius="15" Padding="15,11" Margin="0,0,0,10" BorderThickness="1"
+                              BorderBrush="{DynamicResource BorderBrush}">
+                        <Border.Style><Style TargetType="Border">
+                          <Setter Property="Background" Value="{DynamicResource AgentMessageBrush}"/>
+                          <Style.Triggers><DataTrigger Binding="{Binding IsUser}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource UserMessageBrush}"/>
+                            <Setter Property="Margin" Value="40,0,0,12"/>
+                          </DataTrigger></Style.Triggers>
+                        </Style></Border.Style>
+                        <Grid>
+                          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                          <TextBlock Text="{Binding Role}" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" FontSize="12" FontWeight="SemiBold"/>
+                          <Button HorizontalAlignment="Right" Content="Copy" Padding="7,2" MinHeight="25" Style="{StaticResource TopBarButtonStyle}"
+                                  Command="{Binding DataContext.CopyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                  CommandParameter="{Binding Content}"/>
+                          <TextBox Grid.Row="1" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}"
+                                   IsReadOnly="True" TextWrapping="Wrap" FontSize="14" Margin="-2,5,0,0" Text="{Binding Content, Mode=OneWay}"/>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Grid>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="1" Margin="17,0,17,14">
+              <Border Style="{StaticResource GlassPanel}" Padding="12,7" Margin="0,0,0,8"
+                      Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal">
+                  <StackPanel x:Name="ActivityDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Ellipse Style="{StaticResource ActivityDot}"/><Ellipse Style="{StaticResource ActivityDot}" Width="4" Height="4"/>
+                    <Ellipse Style="{StaticResource ActivityDot}" Width="3" Height="3"/>
+                  </StackPanel>
+                  <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/>
+                </StackPanel>
+              </Border>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,8" Visibility="{Binding HasReviewPlan, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Button Content="Run plan" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RunPlanCommand}"/>
+                <Button Content="Discard" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Command="{Binding DiscardPlanCommand}"/>
+              </StackPanel>
+              <Border Style="{StaticResource GlassPanel}" Padding="9">
+                <StackPanel>
+                  <Grid>
+                    <TextBox x:Name="InputBox" MinHeight="58" MaxHeight="134" AcceptsReturn="True" MaxLength="12000"
+                             AutomationProperties.Name="Message" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             PreviewKeyDown="InputBox_KeyDown" Style="{StaticResource InputTextBoxStyle}"
+                             Background="Transparent" BorderThickness="0" Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock Margin="11,9" IsHitTestVisible="False" Text="Message Aurora…" Foreground="{DynamicResource MutedBrush}">
+                      <TextBlock.Style><Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers><DataTrigger Binding="{Binding InputText}" Value="">
+                          <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger></Style.Triggers>
+                      </Style></TextBlock.Style>
+                    </TextBlock>
+                  </Grid>
+                  <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                      <Button Content="Stop" Margin="6,0" Style="{StaticResource ActionButtonStyle}" Command="{Binding StopCommand}"
+                              Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                      <Button Content="Send" Style="{StaticResource PrimaryButtonStyle}" MinWidth="63" Command="{Binding SendCommand}"/>
+                    </StackPanel>
+                    <WrapPanel VerticalAlignment="Center">
+                      <ComboBox Width="90" Margin="0,0,6,0" SelectedValuePath="Tag" SelectedValue="{Binding Mode}"
+                                AutomationProperties.Name="Task mode" ToolTip="Ask replies. Plan previews. Agent runs approved actions.">
+                        <ComboBoxItem Content="Ask" Tag="{x:Static core:AgentMode.Ask}"/>
+                        <ComboBoxItem Content="Plan" Tag="{x:Static core:AgentMode.Plan}"/>
+                        <ComboBoxItem Content="Agent" Tag="{x:Static core:AgentMode.Autonomous}"/>
+                      </ComboBox>
+                      <Button Content="Attach" Margin="0,0,6,0" Command="{Binding AttachFileCommand}" Style="{StaticResource TopBarButtonStyle}"/>
+                      <Button Content="Folder" Margin="0,0,6,0" Command="{Binding ChooseWorkspaceCommand}" Style="{StaticResource TopBarButtonStyle}" ToolTip="{Binding WorkspaceName}"/>
+                      <Button Content="Models" Command="{Binding SwitchPanelCommand}" CommandParameter="ModelManager" Style="{StaticResource TopBarButtonStyle}"/>
+                    </WrapPanel>
+                  </DockPanel>
+                </StackPanel>
+              </Border>
+              <TextBlock Margin="5,7,5,0" Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+      <Border x:Name="InspectorPanel" Grid.Column="2" Style="{StaticResource GlassPanel}" Margin="12,0,0,0">
         <Grid>
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
           </Grid.RowDefinitions>
           <TextBlock Grid.Row="0" Margin="16,14,16,8" FontSize="14" FontWeight="SemiBold"
-                     Text="{Binding ActivePanel}" />
+                     Text="{Binding PanelTitle}" />
           <Grid Grid.Row="1" Margin="16,0,16,16">
             <!-- Task (default) -->
             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -357,7 +206,21 @@
               <StackPanel>
                 <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="EXECUTION" />
                 <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" FontSize="13" />
-                <TextBlock Margin="0,16,0,0" Style="{StaticResource SectionHeaderStyle}" Text="VERIFICATION" />
+                <TextBlock Margin="0,16,0,0" Style="{StaticResource SectionHeaderStyle}" Text="Steps" />
+<ItemsControl ItemsSource="{Binding PlanSteps}">
+  <ItemsControl.ItemTemplate>
+    <DataTemplate>
+      <Border Margin="0,0,0,6" Padding="9" CornerRadius="8" Background="{DynamicResource SurfaceMutedBrush}">
+        <StackPanel>
+          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AccentBrush}" FontSize="12"/>
+          <TextBlock Text="{Binding Description}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="12"/>
+          <TextBlock Text="{Binding ResultSummary}" TextWrapping="Wrap" FontSize="12"/>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </ItemsControl.ItemTemplate>
+</ItemsControl><TextBlock Margin="0,16,0,0" Style="{StaticResource SectionHeaderStyle}" Text="VERIFICATION" />
                 <TextBlock Text="{Binding VerificationStatus}" TextWrapping="Wrap" FontSize="13" />
                 <TextBlock Margin="0,16,0,0" Style="{StaticResource SectionHeaderStyle}" Text="FINAL REPORT" />
                 <TextBlock Text="{Binding FinalReport}" TextWrapping="Wrap" FontSize="13" />
@@ -461,7 +324,7 @@
                 <Button Content="Choose folder…" Style="{StaticResource ActionButtonStyle}"
                         HorizontalAlignment="Left" Command="{Binding ChooseWorkspaceCommand}" />
                 <TextBlock Margin="0,12,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
-                           Text="Plan and Agent can work within this folder. File changes and Notepad launches require approval." />
+                           Text="Plan and Agent can work within this folder. File changes and opening Windows apps require approval." />
               </StackPanel>
             </ScrollViewer>
 
@@ -540,17 +403,17 @@
                 <ComboBox Margin="0,12,0,0" ItemsSource="{Binding AvailableModels}"
                           DisplayMemberPath="DisplayLabel" SelectedValuePath="Name"
                           SelectedValue="{Binding SelectedModel}" />
-                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <WrapPanel Margin="0,12,0,0">
                   <Button Content="Switch" Style="{StaticResource ActionButtonStyle}"
                           Command="{Binding SwitchModelCommand}" />
                   <Button Content="Download" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}"
                           Command="{Binding DownloadModelCommand}" />
                   <Button Content="Refresh" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}"
                           Command="{Binding RefreshModelsCommand}" />
-                </StackPanel>
+                </WrapPanel>
                 <TextBlock Margin="0,16,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap"
-                           Text="Recommended: qwen3:4b on machines with 8 GB RAM or more, qwen3:1.7b below that. Models already on this PC are listed too — including ones that are not in the catalogue, marked 'Installed (not in catalog)' — and can be selected. Switch makes the selected model the default (saved, used from the next start). Download asks for your approval first, because it is a large download." />
+                           Text="Choose an installed model and press Switch. Aurora checks what is installed at startup. Model downloads require approval." />
               </StackPanel>
             </ScrollViewer>
 
@@ -610,64 +473,7 @@
           </Grid>
         </Grid>
       </Border>
-    </Grid>
-
-    <!-- ============ Bottom input ============ -->
-    <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,12">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <TextBox x:Name="InputBox" Grid.Row="0" MinHeight="60" MaxHeight="130" AutomationProperties.Name="Message" AcceptsReturn="True" MaxLength="12000" TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto" PreviewKeyDown="InputBox_KeyDown"
-                 Style="{StaticResource InputTextBoxStyle}"
-                 Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}" />
-        <Grid Grid.Row="1" Margin="0,10,0,0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <Button Grid.Column="0" Content="Attach" Style="{StaticResource ActionButtonStyle}"
-                  Command="{Binding AttachFileCommand}" />
-          <Button Grid.Column="1" Content="Workspace…" Margin="8,0,0,0"
-                  Style="{StaticResource ActionButtonStyle}" Command="{Binding ChooseWorkspaceCommand}"
-                  ToolTip="{Binding WorkspaceName}" />
-          <ComboBox Grid.Column="2" Margin="8,0,0,0" Width="96" SelectedValuePath="Tag" SelectedValue="{Binding Mode}"
-                    AutomationProperties.Name="Task mode"
-                    ToolTip="Ask answers only. Plan previews actions. Agent inspects the workspace and pauses for changes.">
-            <ComboBoxItem Content="Ask" Tag="{x:Static core:AgentMode.Ask}" />
-            <ComboBoxItem Content="Plan" Tag="{x:Static core:AgentMode.Plan}" />
-            <ComboBoxItem Content="Agent" Tag="{x:Static core:AgentMode.Autonomous}" />
-          </ComboBox>
-          <Button Grid.Column="4" Content="Stop" Style="{StaticResource ActionButtonStyle}"
-                  Command="{Binding StopCommand}" />
-          <Button Grid.Column="5" Click="ShowInspector" Content="{Binding CurrentModel}" Margin="8,0,0,0" MaxWidth="175"
-                  Style="{StaticResource ActionButtonStyle}" Command="{Binding SwitchPanelCommand}" CommandParameter="ModelManager"
-                  ToolTip="Open model selection" />
-          <Button Grid.Column="7" Content="Send" Margin="8,0,0,0" Width="88"
-                  Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendCommand}" />
-        </Grid>
       </Grid>
-    </Border>
-
-    <!-- ============ Status bar ============ -->
-    <Grid Grid.Row="3" Background="{DynamicResource SidebarBrush}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-      <TextBlock Grid.Column="0" Margin="16,0,0,0" FontSize="11" VerticalAlignment="Center"
-                 Foreground="{DynamicResource MutedBrush}" Text="{Binding StatusMessage}" TextTrimming="CharacterEllipsis" />
-      <TextBlock Grid.Column="1" Margin="0,0,16,0" FontSize="11" VerticalAlignment="Center"
-                 Foreground="{DynamicResource MutedBrush}" Text="Local-first  •  Ollama on localhost" />
     </Grid>
   </Grid>
 </Window>

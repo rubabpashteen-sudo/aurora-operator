@@ -685,6 +685,10 @@ public sealed partial class AgentEngine : IDisposable
 
     private async Task<string> AnswerAsync(AgentTask task, TaskPlan plan, CancellationToken ct)
     {
+        if (_useWorkspacePlanner && DesktopActions.MatchRequest(task.UserRequest) is { } target)
+            return $"Switch to Agent and send this request to open {DesktopActions.DisplayName(target)}. Aurora will show an approval first.";
+        if (_useWorkspacePlanner)
+            _progress?.Report(new AgentEvent(task.TaskId, "", "Waiting for the local model…", StepStatus.Running));
         var intent = IntentParser.Parse(task.UserRequest);
         var local = new StringBuilder();
         local.AppendLine("Answer (no changes were made to the computer):");
@@ -705,13 +709,14 @@ public sealed partial class AgentEngine : IDisposable
         foreach (var step in plan.Steps)
             local.AppendLine($"- {step.Title}: {step.Description}");
 
-        if (_ollama is null) return local.ToString().TrimEnd();
+        if (_ollama is null) return _useWorkspacePlanner ? UnavailableAnswer(task, "Ollama is unavailable. Start it to use Ask.") : local.ToString().TrimEnd();
 
         try
         {
             var ollama = _ollama;
             if (!await ollama.IsAvailableAsync(ct).ConfigureAwait(false))
             {
+                if (_useWorkspacePlanner) return UnavailableAnswer(task, "Ollama could not be reached. Start Ollama, then try again.");
                 local.AppendLine();
                 local.AppendLine("Note: Ollama was not reachable, so this answer is the local summary above.");
                 return local.ToString().TrimEnd();
@@ -741,6 +746,7 @@ public sealed partial class AgentEngine : IDisposable
                 var fallback = await ResolveFallbackModelAsync(ollama, ex.Model, ct).ConfigureAwait(false);
                 if (fallback is null)
                 {
+                    if (_useWorkspacePlanner) return UnavailableAnswer(task, "There is no installed fallback model. Open Models to select or download one, then try again.");
                     local.AppendLine();
                     local.AppendLine("Note: I could not answer with AI because no model is installed. " +
                         $"Your model '{ex.Model}' is not installed, and no other model is installed on this PC either. " +
@@ -776,7 +782,8 @@ public sealed partial class AgentEngine : IDisposable
         }
         catch (Exception ex)
         {
-            LocalLogger.Warn("Ollama answer failed; falling back to local summary: " + ex.Message);
+            LocalLogger.Warn("Ollama answer failed: " + ex.Message);
+            if (_useWorkspacePlanner) return UnavailableAnswer(task, ExplainModelError(ex));
             local.AppendLine();
             local.AppendLine("Note: Ollama could not answer (" + ex.Message + "), so this is the local summary.");
             return local.ToString().TrimEnd();
@@ -786,6 +793,20 @@ public sealed partial class AgentEngine : IDisposable
     /// <summary>Best installed model to use instead of a missing
     /// configured model, or null when nothing is installed (or Ollama
     /// stops answering while listing). Never throws.</summary>
+    private static string UnavailableAnswer(AgentTask task, string message)
+    {
+        task.State = TaskState.Blocked;
+        return message;
+    }
+
+    private static string ExplainModelError(Exception error) => error switch
+    {
+        ModelNotFoundException => "The selected model is no longer installed. Open Models and choose an installed model.",
+        _ when error.Message.Contains("llama-server", StringComparison.OrdinalIgnoreCase) =>
+            "Ollama found the model, but its inference engine could not start. Repair or reinstall Ollama, then try again. Built-in Windows actions are still available in Agent mode.",
+        _ => "The local model did not respond. Check Ollama and the installed model in Models, then try again.",
+    };
+
     private async Task<string> ReadAnswerAsync(AgentTask task, OllamaClient ollama, string model,
         IReadOnlyList<ChatMessage> messages, CancellationToken ct)
     {

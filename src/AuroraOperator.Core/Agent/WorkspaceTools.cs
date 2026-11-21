@@ -15,15 +15,15 @@ internal sealed class WorkspaceTools
 
     private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
     private const int MaxEntries = 1000;
-    private readonly string _root;
+    private readonly string? _root;
     private readonly StringComparison _comparison = OperatingSystem.IsWindows()
         ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     internal IReadOnlyDictionary<string, Tool> Registry { get; }
 
-    internal WorkspaceTools(string root)
+    internal WorkspaceTools(string? root)
     {
-        _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        _root = string.IsNullOrWhiteSpace(root) ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         var tools = new[]
         {
             Register("list", "List files and folders directly inside a folder. Use . for the workspace.", RiskLevel.ReadOnly, List, ("path", 260)),
@@ -34,7 +34,11 @@ internal sealed class WorkspaceTools
             Register("write-new-text", "Create and read back a new UTF-8 text file. Parent must exist; existing files are refused.", RiskLevel.SensitiveFileModification, WriteText, ("path", 260), ("text", 12000)),
             Register("open-in-notepad", "Open an existing .txt file in Windows Notepad for the user.", RiskLevel.SensitiveFileModification, OpenInNotepad, ("path", 260)),
         };
-        Registry = new ReadOnlyDictionary<string, Tool>(tools.ToDictionary(t => t.Name, StringComparer.Ordinal));
+        var registry = (_root is null ? Array.Empty<Tool>() : tools).ToDictionary(t => t.Name, StringComparer.Ordinal);
+        registry.Add(DesktopActions.ToolName, Register(DesktopActions.ToolName,
+            "Open a built-in Windows app. Allowed target values are this-pc, explorer, calculator, and notepad. Approval is required.",
+            RiskLevel.NormalReversible, DesktopActions.OpenAsync, ("target", 20)));
+        Registry = new ReadOnlyDictionary<string, Tool>(registry);
     }
 
     private static Tool Register(string name, string description, RiskLevel risk,
@@ -63,7 +67,13 @@ internal sealed class WorkspaceTools
         if (args.Count != tool.Fields.Count)
             throw new FormatException("Missing required argument.");
         var description = string.Join(Environment.NewLine, args.Select(arg => $"{arg.Key}: {arg.Value}"));
-        return new PlanStep($"workspace-{index}", name, name, description, tool.Risk != RiskLevel.ReadOnly)
+        string title = name;
+        if (name == DesktopActions.ToolName)
+        {
+            title = "Open " + (DesktopActions.DisplayName(args["target"]) ?? throw new FormatException("Unsupported Windows app."));
+            description = $"Launch {DesktopActions.DisplayName(args["target"])} through Windows.";
+        }
+        return new PlanStep($"workspace-{index}", title, name, description, tool.Risk != RiskLevel.ReadOnly)
         {
             Args = new ReadOnlyDictionary<string, string>(args),
             WorkspaceTool = tool,
@@ -72,10 +82,11 @@ internal sealed class WorkspaceTools
 
     private string Resolve(string relative, bool allowRoot)
     {
+        var root = _root ?? throw new InvalidOperationException("Select a workspace before using file tools.");
         if (relative == "." && allowRoot)
         {
-            CheckLocalPath(_root);
-            return _root;
+            CheckLocalPath(root);
+            return root;
         }
         if (Path.IsPathRooted(relative) || relative.Contains(':'))
             throw new FormatException("Use a relative path in the selected workspace.");
@@ -90,8 +101,8 @@ internal sealed class WorkspaceTools
                 "0123456789¹²³".Contains(stem[3]))
                 throw new FormatException("Windows device paths are refused.");
         }
-        var full = Path.GetFullPath(Path.Combine(_root, relative));
-        var prefix = Path.EndsInDirectorySeparator(_root) ? _root : _root + Path.DirectorySeparatorChar;
+        var full = Path.GetFullPath(Path.Combine(root, relative));
+        var prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
         if (!full.StartsWith(prefix, _comparison))
             throw new FormatException("Path escapes the selected workspace.");
         CheckLocalPath(full);

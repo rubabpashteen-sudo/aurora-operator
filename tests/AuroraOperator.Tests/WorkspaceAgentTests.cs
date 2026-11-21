@@ -185,6 +185,49 @@ public sealed class WorkspaceAgentTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("open my computer", "this-pc", "Open This PC")]
+    [InlineData("calculator kholo", "calculator", "Open Calculator")]
+    public async Task DesktopShortcutsWorkWithoutModelOrWorkspaceAndRequireApproval(string request, string target, string title)
+    {
+        var approval = new Approval(ApprovalOutcome.Rejected);
+        using var engine = Engine(null, approval);
+        var task = await engine.RunAsync(NewTask(request) with { WorkspacePath = null }, CancellationToken.None);
+
+        var step = Assert.Single(task.Plan!.Steps);
+        Assert.Equal(title, step.Title);
+        Assert.Equal(target, step.Args["target"]);
+        Assert.Equal(StepStatus.NeedsApproval, step.Status);
+        Assert.Equal(TaskState.Failed, task.State);
+        var ticket = Assert.Single(approval.Seen);
+        Assert.Equal(PermissionCategory.ApplicationLaunch, ticket.Category);
+        Assert.Contains(target, ticket.ExactParameters);
+    }
+
+    [Fact]
+    public async Task ModelSuppliedExecutablePathsAreRefusedBeforeApproval()
+    {
+        const string response = """{"calls":[{"tool":"open-windows-app","args":{"target":"cmd.exe"}}],"continue":false}""";
+        using var ollama = new OllamaClient(new Model(response, response));
+        var approval = new Approval(ApprovalOutcome.Approved);
+        using var engine = Engine(ollama, approval);
+        var task = await engine.RunAsync(NewTask("Open an unsupported application") with { WorkspacePath = null }, CancellationToken.None);
+
+        Assert.Equal(TaskState.Failed, task.State);
+        Assert.Empty(approval.Seen);
+        Assert.Empty(task.Plan!.Steps);
+    }
+
+    [Fact]
+    public async Task AskExplainsDesktopActionWithoutExecuting()
+    {
+        var approval = new Approval(ApprovalOutcome.Approved);
+        using var engine = Engine(null, approval);
+        var task = await engine.RunAsync(NewTask("open my computer", AgentMode.Ask) with { WorkspacePath = null }, CancellationToken.None);
+        Assert.Contains("Switch to Agent", task.FinalReport);
+        Assert.Empty(approval.Seen);
+    }
+
     private AgentTask NewTask(string request, AgentMode mode = AgentMode.Autonomous) =>
         new(Guid.NewGuid().ToString("N"), request, Language.English, mode) { WorkspacePath = _root };
 

@@ -1,4 +1,5 @@
 using System.Windows;
+using AuroraOperator.App.Services;
 using System.Windows.Controls;
 using System.Windows.Input;
 using AuroraOperator.App.ViewModels;
@@ -27,6 +28,9 @@ public partial class MainWindow : Window
         Height = Math.Min(Height, workArea.Height);
 
         _viewModel.ThemeToggleRequested += (_, _) => ApplyTheme(_viewModel.IsDarkTheme);
+        SourceInitialized += (_, _) => ApplyBackdrop(_viewModel.IsDarkTheme);
+        if (!SystemParameters.ClientAreaAnimation || SystemParameters.HighContrast)
+            ActivityDots.Visibility = Visibility.Collapsed;
         Loaded += (_, _) => { LayoutPanels(); InputBox.Focus(); };
         SizeChanged += (_, _) => LayoutPanels();
         _viewModel.InspectorRequested += (_, _) => ShowInspector(this, new RoutedEventArgs());
@@ -35,7 +39,7 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(MainViewModel.ActivePanel))
             {
                 _inspectorVisible = true;
-                LayoutPanels();
+                OnPanelChanged();
             }
         };
     }
@@ -64,6 +68,7 @@ public partial class MainWindow : Window
         {
             Source = new Uri(themeFile, UriKind.Relative),
         });
+        ApplyBackdrop(dark);
     }
 
     /// <summary>
@@ -82,6 +87,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPanelChanged() => LayoutPanels();
+
+    private void FocusComposer(object sender, RoutedEventArgs e) => InputBox.Focus();
+
+    private void UseSuggestion(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsRunning || sender is not Button { Tag: string text }) return;
+        _viewModel.Mode = AgentMode.Autonomous;
+        _viewModel.InputText = text;
+        InputBox.Focus();
+        InputBox.CaretIndex = text.Length;
+    }
+
+    private void ApplyBackdrop(bool dark) => WindowBackdrop.Apply(this, dark);
+
     private bool _navigationVisible = true;
     private bool _inspectorVisible;
 
@@ -89,7 +109,7 @@ public partial class MainWindow : Window
     {
         if (NavigationColumn is null || InspectorColumn is null) return;
         bool showNavigation = _navigationVisible && (ActualWidth >= 920 || !_inspectorVisible);
-        NavigationColumn.Width = new GridLength(showNavigation ? 198 : 0);
+        NavigationColumn.Width = new GridLength(showNavigation ? 210 : 0);
         NavigationPanel.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
         InspectorColumn.Width = new GridLength(_inspectorVisible ? (ActualWidth >= 920 ? 300 : 258) : 0);
         InspectorPanel.Visibility = _inspectorVisible ? Visibility.Visible : Visibility.Collapsed;

@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
+using AuroraOperator.App.Services;
+using AuroraOperator.App.ViewModels;
 using AuroraOperator.Core;
 using AuroraOperator.Core.Security;
 
@@ -73,7 +75,8 @@ public partial class ApprovalDialog : Window
             Owner = Application.Current.MainWindow;
         }
 
-        ApproveButton.Focus();
+        SourceInitialized += (_, _) => WindowBackdrop.Apply(this, Owner?.DataContext is not MainViewModel model || model.IsDarkTheme);
+        Loaded += (_, _) => DenyButton.Focus();
     }
 
     /// <summary>Forces the dialog closed with the given outcome (panel resolve / task cancel / expiry). Safe to call from any thread.</summary>

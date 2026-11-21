@@ -256,6 +256,7 @@ public sealed class ApprovalService : IApprovalService
         (step.ToolName ?? string.Empty).ToLowerInvariant() switch
         {
             "browser" => PermissionCategory.BrowserAccess,
+            "open-windows-app" or "open-in-notepad" => PermissionCategory.ApplicationLaunch,
             "coding" => PermissionCategory.TerminalExecution,
             "terminal" => PermissionCategory.TerminalExecution,
             "document" => PermissionCategory.FileAccess,

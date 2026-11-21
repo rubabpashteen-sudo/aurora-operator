@@ -7,8 +7,9 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource TextBrush}">
-  <Grid Margin="20">
+        Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI Variable Text, Segoe UI">
+  <Border Background="{DynamicResource AtmosphereBrush}">
+  <Grid Margin="24">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
@@ -23,11 +24,13 @@
                TextWrapping="Wrap"
                Text="Review exactly what will happen before you approve it. Nothing runs until you decide." />
 
-    <StackPanel Grid.Row="2">
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel>
       <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextWrapping="Wrap" />
       <TextBlock x:Name="DescriptionText" Margin="0,6,0,0" TextWrapping="Wrap"
                  Foreground="{DynamicResource MutedBrush}" />
-      <TextBlock Margin="0,12,0,4" FontWeight="SemiBold" Text="Exact command / change:" />
+      <Expander Header="Exact action and parameters" Margin="0,12,0,0" Foreground="{DynamicResource TextBrush}">
+      <StackPanel>
       <Border Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="6"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="10">
         <TextBlock x:Name="ExactText" FontFamily="Consolas, 'Courier New', monospace"
@@ -47,22 +50,26 @@
         <Run Text="Action: " />
         <Run x:Name="ActionIdText" FontFamily="Consolas, 'Courier New', monospace" />
       </TextBlock>
+      </StackPanel>
+      </Expander>
       <TextBlock Margin="0,8,0,0" FontSize="12" FontWeight="SemiBold">
         <Run Text="Expires in: " />
         <Run x:Name="ExpiryText" />
       </TextBlock>
     </StackPanel>
+    </ScrollViewer>
 
     <TextBlock Grid.Row="3" Margin="0,12,0,0" Foreground="{DynamicResource MutedBrush}"
                TextWrapping="Wrap" FontSize="12"
-               Text="Denying is always safe: the task stops and nothing is changed. Approving covers only this exact action — nothing else." />
+               Text="Approval applies to this action. Declining stops the remaining steps." />
 
     <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
       <Button x:Name="DenyButton" Content="Deny" Width="96" Height="34" Margin="0,0,8,0"
-              Click="DenyButton_Click" />
+              Style="{StaticResource ActionButtonStyle}" Click="DenyButton_Click" />
       <Button x:Name="ApproveButton" Content="Approve" Width="96" Height="34"
-              Background="{DynamicResource AccentBrush}" Foreground="#14161A"
+              Style="{StaticResource PrimaryButtonStyle}"
               Click="ApproveButton_Click" />
     </StackPanel>
   </Grid>
+  </Border>
 </Window>

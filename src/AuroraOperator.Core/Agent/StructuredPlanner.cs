@@ -9,7 +9,7 @@ internal sealed class StructuredPlanner
     private readonly WorkspaceTools _workspace;
     private readonly Func<IReadOnlyList<ChatMessage>, CancellationToken, Task<string>> _generate;
 
-    internal StructuredPlanner(string root, Func<IReadOnlyList<ChatMessage>, CancellationToken, Task<string>> generate)
+    internal StructuredPlanner(string? root, Func<IReadOnlyList<ChatMessage>, CancellationToken, Task<string>> generate)
     {
         _workspace = new WorkspaceTools(root);
         _generate = generate;
@@ -20,6 +20,11 @@ internal sealed class StructuredPlanner
     internal async Task<Batch?> PlanAsync(string request, IReadOnlyList<object> observations, int offset,
         bool allowContinuation, CancellationToken ct)
     {
+        if (offset == 0 && DesktopActions.MatchRequest(request) is { } target)
+        {
+            using var args = JsonDocument.Parse(JsonSerializer.Serialize(new { target }));
+            return new Batch([_workspace.Bind(DesktopActions.ToolName, args.RootElement, 1)], false);
+        }
         int remaining = MaxCalls - offset;
         var tools = _workspace.Registry.Values.Select(tool => new
         {
@@ -30,7 +35,7 @@ internal sealed class StructuredPlanner
         });
         var system = new ChatMessage("system",
             $$$"""
-            Plan actions for Aurora Operator in a folder explicitly selected by the user.
+            Plan only the stated user goal for Aurora Operator. File tools are available only when the user has chosen a folder.
             Answer only with {"calls":[{"tool":"exact name","args":{"required field":"value"}}],"continue":false}.
             Use at most {{{remaining}}} calls. Supply every required argument. Use paths relative to the selected folder;
             use "." for its root. Never invent file names for existing files. Set calls to [] if the goal cannot be
@@ -75,7 +80,7 @@ internal sealed class StructuredPlanner
             "find workspace duplicates" => """{"calls":[{"tool":"duplicates","args":{"path":"."}}],"continue":false}""",
             _ => null
         };
-        return fallback is null ? null : Parse(fallback, 0) with { IsOfflineFallback = true };
+        return fallback is null || !_workspace.Registry.ContainsKey("list") ? null : Parse(fallback, 0) with { IsOfflineFallback = true };
     }
 
     internal Batch Parse(string output, int offset)

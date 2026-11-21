@@ -16,7 +16,7 @@ Unicode true
 !endif
 
 !define PRODUCT "Aurora Operator RC"
-!define APP_VERSION "0.3.0-rc.1"
+!define APP_VERSION "0.3.0-rc.2"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AuroraOperatorRC"
 
 Name "${PRODUCT}"
@@ -27,7 +27,7 @@ RequestExecutionLevel user
 SetCompressor /SOLID lzma
 ShowInstDetails show
 ShowUninstDetails show
-VIProductVersion "0.3.0.1"
+VIProductVersion "0.3.0.2"
 VIAddVersionKey "ProductName" "Aurora Operator RC"
 VIAddVersionKey "FileDescription" "Aurora Operator RC Setup"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"

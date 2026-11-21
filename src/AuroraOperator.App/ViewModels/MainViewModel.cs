@@ -122,6 +122,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         // (constructed on the UI thread in App.OnStartup), so engine events
         // arrive on the UI thread and can update collections directly.
         AgentProgress = new Progress<AgentEvent>(OnAgentEvent);
+        Messages.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasMessages));
+            OnPropertyChanged(nameof(HasNoMessages));
+        };
 
         SendCommand = new RelayCommand(async () => await SendAsync(), () => !IsRunning && !string.IsNullOrWhiteSpace(InputText));
         StopCommand = new RelayCommand(Stop, () => IsRunning);
@@ -153,11 +158,6 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         DownloadModelCommand = new RelayCommand(async () => await DownloadModelAsync(), () => !string.IsNullOrWhiteSpace(SelectedModel));
         RefreshDiagnosticsCommand = new RelayCommand(() => { RefreshDiagnostics(); StatusMessage = "Diagnostics refreshed."; });
 
-        Messages.Add(new ChatMessageItem
-        {
-            Role = "Aurora",
-            Content = "Ask a question, or choose a workspace to inspect files, find duplicates, or draft a text document.",
-        });
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _timer.Tick += (_, _) => OnTimerTick();
@@ -264,6 +264,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public ICommand RunPlanCommand { get; }
     public ICommand DiscardPlanCommand { get; }
     public ICommand CopyCommand { get; }
+    public bool HasMessages => Messages.Count != 0;
+    public bool HasNoMessages => !HasMessages;
+    public string PanelTitle => ActivePanel switch
+    {
+        "Recent" => "Conversations", "Projects" => "Workspace", "Memory" => "Local storage",
+        "ModelManager" => "Models", "Activity" => "Diagnostics", "Task" => "Task details", _ => ActivePanel,
+    };
 
     public event EventHandler? InspectorRequested;
     public bool HasReviewPlan => _reviewTask is not null;
@@ -383,7 +390,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public string ActivePanel
     {
         get => _activePanel;
-        set => SetProperty(ref _activePanel, value);
+        set
+        {
+            if (SetProperty(ref _activePanel, value)) OnPropertyChanged(nameof(PanelTitle));
+        }
     }
 
     public bool IsScreenContextEnabled
@@ -562,15 +572,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(_modelManager.CurrentModel))
+        if (!IsRunning)
         {
-            CurrentModel = _modelManager.CurrentModel;
-        }
-        else if (AvailableModels.Count > 0 &&
-                 !AvailableModels.Any(m => string.Equals(m.Name, CurrentModel, StringComparison.OrdinalIgnoreCase)))
-        {
-            // Prefer an installed model; otherwise the first catalog entry.
-            CurrentModel = AvailableModels.FirstOrDefault(m => m.IsInstalled)?.Name ?? AvailableModels[0].Name;
+            var effective = Engine?.SessionFallbackModel ?? Engine?.CurrentModel ?? CurrentModel;
+            var installed = AvailableModels.Where(m => m.IsInstalled).Select(m => m.Name).ToArray();
+            if (installed.Length > 0 && !installed.Contains(effective, StringComparer.OrdinalIgnoreCase))
+            {
+                effective = ModelFallback.SelectFallbackModel(effective, installed) ?? installed[0];
+                Engine?.UpdateModel(effective);
+            }
+            CurrentModel = effective;
         }
 
         SelectedModel = CurrentModel;
@@ -874,7 +885,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             TaskState.Blocked => "Blocked — see the chat log",
             _ => result.State.ToString(),
         };
-        StatusMessage = "Task " + result.State + ".";
+        StatusMessage = result.State == TaskState.WaitingApproval ? "Plan ready for review." : "Task " + result.State + ".";
+        if (result.State == TaskState.WaitingApproval)
+        {
+            ActivePanel = "Task";
+            InspectorRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         // A model-not-found fallback happened during this task: say so in
         // the status bar too, and point at the permanent fix. The chat
@@ -882,6 +898,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         if (_engine?.SessionFallbackModel is string fallback &&
             _engine.LastMissingModel is string missing)
         {
+            CurrentModel = fallback;
             StatusMessage = $"Using {fallback} this session because {missing} is not installed. " +
                 "Switch in Model Manager to make it the default, or download " + missing + " from there.";
         }
@@ -1046,11 +1063,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         VerificationStatus = "Not run yet";
         ActivePanel = "Task";
         StatusMessage = "New task started.";
-        Messages.Add(new ChatMessageItem
-        {
-            Role = "Aurora",
-            Content = "Fresh task. What would you like me to do?",
-        });
+
     }
 
     private void AttachFiles()
@@ -1121,6 +1134,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             if (_streamMessage is null)
             {
+                StatusMessage = "Streaming the local response…";
                 _streamMessage = new ChatMessageItem { Role = "Aurora", Content = evt.Message };
                 Messages.Add(_streamMessage);
             }

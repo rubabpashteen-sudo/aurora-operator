@@ -34,12 +34,6 @@ public sealed partial class AgentEngine
 
         try
         {
-            if (string.IsNullOrWhiteSpace(task.WorkspacePath))
-            {
-                task.State = TaskState.Blocked;
-                task.FinalReport = "Choose a workspace folder before using Plan or Agent.";
-                return task;
-            }
             if (_permissions.IsDestructiveRequest(task.UserRequest))
             {
                 task.State = TaskState.Blocked;
@@ -67,8 +61,9 @@ public sealed partial class AgentEngine
                 }
             });
             var plan = new TaskPlan(task.TaskId, task.UserRequest, task.Language, steps.AsReadOnly(),
-                $"Workspace: {task.WorkspacePath}");
+                task.WorkspacePath is null ? "Windows desktop" : $"Workspace: {task.WorkspacePath}");
             task.Plan = plan;
+            _progress?.Report(new AgentEvent(task.TaskId, "", reviewed is null ? "Preparing an action plan…" : "Checking the approved plan…", StepStatus.Running));
             bool requiresMorePlanning = false;
             for (int pass = 0; pass < MaxPlanningPasses; pass++)
             {
@@ -94,7 +89,7 @@ public sealed partial class AgentEngine
                         Array.AsReadOnly(steps.ToArray()), plan.Summary));
                     var origin = usedOfflineFallback ? "\nThis preview uses the deterministic read-only fallback." : "";
                     var notice = fallbackNotice is null ? "" : fallbackNotice + "\n";
-                    task.FinalReport = $"{notice}{plan.Summary}{origin}\nReview these steps in the task panel, then choose Run plan. Actions that change files or open Notepad also require individual approval.";
+                    task.FinalReport = $"{notice}{plan.Summary}{origin}\nReview these steps in the task panel, then choose Run plan. Actions that change files or open apps also require individual approval.";
                     return task;
                 }
 
@@ -178,7 +173,7 @@ public sealed partial class AgentEngine
             failed.Add($"Workspace task stopped ({ex.GetType().Name}). Check the selected folder and local model.");
         }
 
-        var lines = new List<string> { $"Task {task.State.ToString().ToLowerInvariant()} in {task.WorkspacePath}." };
+        var lines = new List<string> { $"Task {task.State.ToString().ToLowerInvariant()} in {task.WorkspacePath ?? "the Windows desktop"}." };
         if (fallbackNotice is not null) lines.Add(fallbackNotice);
         if (usedOfflineFallback) lines.Add("Used the deterministic read-only fallback because the local model could not produce a valid plan.");
         lines.AddRange(completed.Select(message => "- " + message));

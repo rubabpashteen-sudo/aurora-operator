@@ -1,7 +1,10 @@
-# Aurora Operator 0.3.0 RC.1
+# Aurora Operator 0.3.0 RC.2
 
-The release candidate focuses on local conversation and folder-scoped work.
+RC.2 rebuilds the desktop around a glass workspace and adds approval-gated built-in Windows launches.
 
+- The new WPF shell uses Windows 11 Desktop Acrylic where available and an opaque fallback on older systems. The workspace, messages, composer, task inspector, model selector and approval dialog share a new theme.
+- Explicit requests such as “open my computer” route directly to the built-in This PC launch with exact approval. File Explorer, Calculator, and Notepad also have fixed launch targets.
+- Startup reconciles the selected model with installed Ollama models. Model runtime errors are shown separately from missing-model errors.
 - Ask streams assistant messages. Plan previews one fixed plan and runs it only when requested. Agent can inspect a folder, use tool results for follow-up planning, and pause for approval.
 - File operations include top-level folder listing, bounded duplicate scans, small UTF-8 reads, single-folder creation, no-overwrite file moves, verified new text creation, and opening a saved text file in Windows Notepad.
 - The desktop has collapsible navigation and details, workspace selection, keyboard shortcuts, copyable messages, model controls, status cards, conversation search and reopening.
