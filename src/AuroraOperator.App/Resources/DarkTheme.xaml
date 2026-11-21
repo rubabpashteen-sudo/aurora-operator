@@ -4,14 +4,14 @@
   <!-- Aurora Operator — dark theme. Mica-like feel comes from the flat
        charcoal surfaces plus a semi-transparent window background; there
        are deliberately no gradients anywhere in this UI. -->
-  <Color x:Key="WindowBackgroundColor">#14161A</Color>
-  <Color x:Key="SurfaceColor">#1C1F26</Color>
+  <Color x:Key="WindowBackgroundColor">#12151C</Color>
+  <Color x:Key="SurfaceColor">#1A1F2B</Color>
   <Color x:Key="SurfaceMutedColor">#23262E</Color>
   <Color x:Key="SurfaceHoverColor">#2A2E38</Color>
   <Color x:Key="BorderColor">#2E323C</Color>
   <Color x:Key="TextPrimaryColor">#E8EAED</Color>
   <Color x:Key="TextMutedColor">#9AA0AA</Color>
-  <Color x:Key="AccentColor">#5EEAD4</Color>
+  <Color x:Key="AccentColor">#A9BCFF</Color>
   <Color x:Key="AccentSecondaryColor">#A78BFA</Color>
   <Color x:Key="SuccessColor">#34D399</Color>
   <Color x:Key="WarningColor">#FBBF24</Color>
@@ -31,9 +31,9 @@
   <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
 
   <!-- Translucent top bar / panel brushes for the glass look. -->
-  <SolidColorBrush x:Key="TopBarBrush" Color="#1C1F26" Opacity="0.92" />
-  <SolidColorBrush x:Key="SidebarBrush" Color="#17191F" Opacity="0.96" />
-  <SolidColorBrush x:Key="UserMessageBrush" Color="#22303A" />
-  <SolidColorBrush x:Key="AgentMessageBrush" Color="#1C1F26" />
+  <SolidColorBrush x:Key="TopBarBrush" Color="#1A1F2B" Opacity="1" />
+  <SolidColorBrush x:Key="SidebarBrush" Color="#17191F" Opacity="1" />
+  <SolidColorBrush x:Key="UserMessageBrush" Color="#263448" />
+  <SolidColorBrush x:Key="AgentMessageBrush" Color="#1A1F2B" />
 
 </ResourceDictionary>

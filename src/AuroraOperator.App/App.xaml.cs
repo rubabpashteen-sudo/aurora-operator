@@ -1,5 +1,6 @@
 using System.IO;
-using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using AuroraOperator.App.Services;
@@ -21,7 +22,6 @@ namespace AuroraOperator.App;
 public partial class App : Application
 {
     private Mutex? _singleInstanceMutex;
-    private HttpClient? _httpClient;
     private OllamaClient? _ollama;
     private MemoryStore? _memory;
     private MainViewModel? _viewModel;
@@ -35,6 +35,8 @@ public partial class App : Application
         string appDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AuroraOperator");
+        if (e.Args is ["--data-directory", string isolatedDirectory] && Path.IsPathFullyQualified(isolatedDirectory))
+            appDataDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(isolatedDirectory));
         string logsDir = Path.Combine(appDataDir, "Logs");
         string modelsDir = Path.Combine(appDataDir, "Models");
         Directory.CreateDirectory(appDataDir);
@@ -82,7 +84,8 @@ public partial class App : Application
         try
         {
             bool createdNew;
-            _singleInstanceMutex = new Mutex(true, "AuroraOperator.SingleInstance", out createdNew);
+            var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(appDataDir.ToUpperInvariant())));
+            _singleInstanceMutex = new Mutex(true, "AuroraOperator.SingleInstance." + key, out createdNew);
             if (!createdNew)
             {
                 MessageBox.Show(
@@ -103,8 +106,7 @@ public partial class App : Application
         // The HttpClient is owned by App (OllamaClient only disposes a
         // client it created itself) and is released in OnExit, as are the
         // Ollama client, the memory store, the engine and the view model.
-        _httpClient = new HttpClient();
-        var ollama = new OllamaClient(_httpClient);
+        var ollama = new OllamaClient();
         _ollama = ollama;
         var modelManager = new ModelManager(ollama, modelsDir);
         var memory = new MemoryStore(Path.Combine(appDataDir, "aurora.db"));
@@ -149,7 +151,8 @@ public partial class App : Application
                 ? "qwen3:4b"
                 : modelManager.CurrentModel;
         var engine = new AgentEngine(ollama, model, tools, permissions, viewModel.AgentProgress,
-            approvalService, new ApprovalSettings(AutoApproveLowRisk: true, ApprovalTimeout: TimeSpan.FromMinutes(5)));
+            approvalService, new ApprovalSettings(AutoApproveLowRisk: true, ApprovalTimeout: TimeSpan.FromMinutes(5)),
+            useWorkspacePlanner: true);
         _engine = engine;
         _viewModel = viewModel;
         viewModel.Engine = engine;
@@ -185,7 +188,6 @@ public partial class App : Application
         try { _engine?.Dispose(); } catch (Exception ex) { LocalLogger.Warn("Failed to dispose the agent engine. " + ex.Message); }
         try { _memory?.Dispose(); } catch (Exception ex) { LocalLogger.Warn("Failed to dispose the memory store. " + ex.Message); }
         try { _ollama?.Dispose(); } catch (Exception ex) { LocalLogger.Warn("Failed to dispose the Ollama client. " + ex.Message); }
-        try { _httpClient?.Dispose(); } catch (Exception ex) { LocalLogger.Warn("Failed to dispose the HTTP client. " + ex.Message); }
 
         LocalLogger.Info("Aurora Operator exiting.");
         base.OnExit(e);

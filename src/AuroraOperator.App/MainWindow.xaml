@@ -3,16 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:AuroraOperator.Core;assembly=AuroraOperator.Core"
         xmlns:app="clr-namespace:AuroraOperator.App"
-        Title="Aurora Operator" Width="1280" Height="800"
-        MinWidth="1024" MinHeight="640"
+        Title="Aurora Operator" Width="1100" Height="720" WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True"
+        MinWidth="720" MinHeight="520"
         Icon="Assets/aurora.ico"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextBrush}">
-  <WindowChrome.WindowChrome>
-    <WindowChrome CaptionHeight="36" CornerRadius="0" GlassFrameThickness="0"
-                  ResizeBorderThickness="6" UseAeroCaptionButtons="True" />
-  </WindowChrome.WindowChrome>
-
   <Window.Resources>
     <app:StepStatusToBrushConverter x:Key="StepStatusToBrushConverter" />
 
@@ -177,21 +173,23 @@
             </Style>
           </Button.Style>
         </Button>
-        <Button Content="Settings" Margin="8,0,0,0" Style="{StaticResource TopBarButtonStyle}"
-                Command="{Binding SwitchPanelCommand}" CommandParameter="Settings" />
+        <Button Content="Navigation" Margin="8,0,0,0" Style="{StaticResource TopBarButtonStyle}"
+                Click="ToggleNavigation" ToolTip="Show or hide navigation" />
+        <Button Content="Details" Margin="8,0,0,0" Style="{StaticResource TopBarButtonStyle}"
+                Click="ToggleInspector" ToolTip="Show or hide workspace details" />
       </StackPanel>
     </Grid>
 
     <!-- ============ Main area ============ -->
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="216" />
+        <ColumnDefinition x:Name="NavigationColumn" Width="198" />
         <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="320" />
+        <ColumnDefinition x:Name="InspectorColumn" Width="300" />
       </Grid.ColumnDefinitions>
 
       <!-- Left sidebar -->
-      <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}"
+      <Border x:Name="NavigationPanel" Grid.Column="0" Background="{DynamicResource SidebarBrush}"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,1,0">
         <Grid>
           <Grid.RowDefinitions>
@@ -199,12 +197,12 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
-          <Button Grid.Row="0" Content="+  New Task" Margin="12,12,12,6" Height="38"
+          <Button Grid.Row="0" Content="New conversation" Margin="12,12,12,6" Height="38"
                   Style="{StaticResource PrimaryButtonStyle}" Command="{Binding NewTaskCommand}" />
           <StackPanel Grid.Row="1" Margin="8,4">
-            <Button Content="Recent Tasks" Style="{StaticResource NavButtonStyle}"
+            <Button Content="Conversations" Style="{StaticResource NavButtonStyle}"
                     Command="{Binding SwitchPanelCommand}" CommandParameter="Recent" />
-            <Button Content="Projects" Style="{StaticResource NavButtonStyle}"
+            <Button Content="Workspace" Style="{StaticResource NavButtonStyle}"
                     Command="{Binding SwitchPanelCommand}" CommandParameter="Projects" />
             <Button Content="Files" Style="{StaticResource NavButtonStyle}"
                     Command="{Binding SwitchPanelCommand}" CommandParameter="Files" />
@@ -219,7 +217,7 @@
           </StackPanel>
           <TextBlock Grid.Row="2" Margin="16,0,16,14" FontSize="11"
                      Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
-                     Text="Local-first. Your requests and files never leave this machine." />
+                     Text="Local inference via Ollama" />
         </Grid>
       </Border>
 
@@ -228,11 +226,12 @@
         <Grid.RowDefinitions>
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="180" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="4" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,16,20,8">
+        <ScrollViewer x:Name="ConversationScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,20,24,8" ScrollChanged="ConversationScroll_ScrollChanged">
+          <Grid MaxWidth="840">
           <ItemsControl ItemsSource="{Binding Messages}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
@@ -254,23 +253,42 @@
                       <TextBlock Margin="8,0,0,0" FontSize="11" Foreground="{DynamicResource MutedBrush}"
                                  Text="{Binding Timestamp, StringFormat='{}{0:HH:mm}'}" />
                     </StackPanel>
-                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" FontSize="14" LineHeight="20" />
+                    <TextBox Text="{Binding Content, Mode=OneWay}" IsReadOnly="True" IsTabStop="False"
+                             BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}"
+                             Padding="0" TextWrapping="Wrap" FontSize="14" />
+                    <Button Content="Copy" HorizontalAlignment="Right" Padding="7,3" Style="{StaticResource ActionButtonStyle}"
+                            Command="{Binding DataContext.CopyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding Content}" />
                   </StackPanel>
                 </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          </Grid>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="20,4,20,6">
-          <TextBlock Text="Plan" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource MutedBrush}" />
-          <TextBlock Margin="6,0,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
-                     Text="{Binding PlanSteps.Count, StringFormat='({0} steps)'}" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="24,4,24,8">
+          <StackPanel.Style>
+            <Style TargetType="StackPanel">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers><DataTrigger Binding="{Binding HasReviewPlan}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger></Style.Triggers>
+            </Style>
+          </StackPanel.Style>
+          <Button Content="Run plan" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RunPlanCommand}" />
+          <Button Content="Discard" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Command="{Binding DiscardPlanCommand}" />
         </StackPanel>
-
-        <ListBox Grid.Row="2" Margin="20,0,20,8" ItemsSource="{Binding PlanSteps}"
-                 Background="{DynamicResource SurfaceBrush}"
-                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <ListBox Grid.Row="2" Margin="24,0,24,8" MaxHeight="170" ItemsSource="{Binding PlanSteps}"
+                 Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                 AutomationProperties.Name="Execution steps" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.Style>
+            <Style TargetType="ListBox"><Style.Triggers>
+              <DataTrigger Binding="{Binding PlanSteps.Count}" Value="0">
+                <Setter Property="Visibility" Value="Collapsed" />
+              </DataTrigger>
+            </Style.Triggers></Style>
+          </ListBox.Style>
           <ListBox.ItemTemplate>
             <DataTemplate>
               <Grid Margin="6,4">
@@ -314,7 +332,7 @@
       </Grid>
 
       <!-- Right panel -->
-      <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}"
+      <Border x:Name="InspectorPanel" Grid.Column="2" Background="{DynamicResource SurfaceBrush}"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,1,0,0">
         <Grid>
           <Grid.RowDefinitions>
@@ -381,7 +399,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
-                           Text="Approve or deny each request above. Denying stops the task safely." />
+                           Text="Sensitive actions pause for approval." />
               </StackPanel>
             </ScrollViewer>
 
@@ -398,10 +416,13 @@
                 </Style>
               </ScrollViewer.Style>
               <StackPanel>
-                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="RECENT TASKS" />
-                <TextBlock FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
-                           Text="Double-click a task to load it back into the chat." />
-                <ListBox x:Name="RecentTasksList" ItemsSource="{Binding RecentTasks}"
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Saved conversations" />
+                <TextBox x:Name="HistorySearch" Margin="0,4,0,12" Style="{StaticResource InputTextBoxStyle}"
+                         AutomationProperties.Name="Search saved conversations"
+                         Text="{Binding HistoryQuery, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10"
+                           Text="Double-click a conversation or press Enter to reopen it." />
+                <ListBox x:Name="RecentTasksList" KeyDown="RecentTasksList_KeyDown" ItemsSource="{Binding RecentTasks}"
                          Background="Transparent" BorderThickness="0"
                          MouseDoubleClick="RecentTasksList_MouseDoubleClick">
                   <ListBox.ItemTemplate>
@@ -435,16 +456,12 @@
                 </Style>
               </ScrollViewer.Style>
               <StackPanel>
-                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="PROJECTS" />
-                <TextBlock FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
-                           Text="Projects are derived from your recent tasks. Run a task and it appears here as a project entry." />
-                <ItemsControl ItemsSource="{Binding RecentTasks}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding UserRequest}" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8" />
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Selected folder" />
+                <TextBlock Text="{Binding WorkspaceName}" TextWrapping="Wrap" Margin="0,4,0,10" />
+                <Button Content="Choose folder…" Style="{StaticResource ActionButtonStyle}"
+                        HorizontalAlignment="Left" Command="{Binding ChooseWorkspaceCommand}" />
+                <TextBlock Margin="0,12,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"
+                           Text="Plan and Agent can work within this folder. File changes and Notepad launches require approval." />
               </StackPanel>
             </ScrollViewer>
 
@@ -496,7 +513,7 @@
                            Text="Conversations and tasks are stored in a local SQLite database. Nothing is uploaded anywhere." />
                 <TextBlock Margin="0,8,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" Text="{Binding AppDataPath, StringFormat='Local data: {0}'}" />
-                <Button Content="Clear conversation history" Margin="0,16,0,0"
+                <Button Content="Clear conversations and tasks" Margin="0,16,0,0"
                         Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Left"
                         Command="{Binding ClearMemoryCommand}" />
               </StackPanel>
@@ -585,7 +602,7 @@
                 <TextBox Margin="0,8,0,0" Width="120" HorizontalAlignment="Left"
                          Style="{StaticResource InputTextBoxStyle}"
                          Text="{Binding ContextLength, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Margin="0,16,0,0" FontSize="13" Text="Local data" FontWeight="SemiBold" />
+                <TextBlock Margin="0,16,0,0" FontSize="13" Text="Local data · unencrypted transcripts and task history" FontWeight="SemiBold" />
                 <TextBlock Margin="0,8,0,0" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" Text="{Binding AppDataPath}" />
               </StackPanel>
@@ -603,7 +620,7 @@
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <TextBox x:Name="InputBox" Grid.Row="0" Height="58" AcceptsReturn="True" TextWrapping="Wrap"
+        <TextBox x:Name="InputBox" Grid.Row="0" MinHeight="60" MaxHeight="130" AutomationProperties.Name="Message" AcceptsReturn="True" MaxLength="12000" TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto" KeyDown="InputBox_KeyDown"
                  Style="{StaticResource InputTextBoxStyle}"
                  Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}" />
@@ -620,22 +637,21 @@
           </Grid.ColumnDefinitions>
           <Button Grid.Column="0" Content="Attach" Style="{StaticResource ActionButtonStyle}"
                   Command="{Binding AttachFileCommand}" />
-          <ToggleButton Grid.Column="1" Content="Screen context" Margin="8,0,0,0"
-                        Style="{StaticResource ToggleButtonStyle}"
-                        IsChecked="{Binding IsScreenContextEnabled}"
-                        ToolTip="Include a UI Automation snapshot of the screen with the next request." />
-          <ComboBox Grid.Column="2" Margin="8,0,0,0" Width="130" SelectedItem="{Binding Mode}"
-                    ToolTip="Ask: answer only. Plan: show a plan and wait for approval. Autonomous: execute the plan.">
-            <core:AgentMode>Ask</core:AgentMode>
-            <core:AgentMode>Plan</core:AgentMode>
-            <core:AgentMode>Autonomous</core:AgentMode>
+          <Button Grid.Column="1" Content="Workspace…" Margin="8,0,0,0"
+                  Style="{StaticResource ActionButtonStyle}" Command="{Binding ChooseWorkspaceCommand}"
+                  ToolTip="{Binding WorkspaceName}" />
+          <ComboBox Grid.Column="2" Margin="8,0,0,0" Width="96" SelectedValuePath="Tag" SelectedValue="{Binding Mode}"
+                    AutomationProperties.Name="Task mode"
+                    ToolTip="Ask answers only. Plan previews actions. Agent inspects the workspace and pauses for changes.">
+            <ComboBoxItem Content="Ask" Tag="{x:Static core:AgentMode.Ask}" />
+            <ComboBoxItem Content="Plan" Tag="{x:Static core:AgentMode.Plan}" />
+            <ComboBoxItem Content="Agent" Tag="{x:Static core:AgentMode.Autonomous}" />
           </ComboBox>
           <Button Grid.Column="4" Content="Stop" Style="{StaticResource ActionButtonStyle}"
                   Command="{Binding StopCommand}" />
-          <Button Grid.Column="5" Content="Pause" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}"
-                  Command="{Binding PauseCommand}" />
-          <Button Grid.Column="6" Content="Resume" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}"
-                  Command="{Binding ResumeCommand}" />
+          <Button Grid.Column="5" Click="ShowInspector" Content="{Binding CurrentModel}" Margin="8,0,0,0" MaxWidth="175"
+                  Style="{StaticResource ActionButtonStyle}" Command="{Binding SwitchPanelCommand}" CommandParameter="ModelManager"
+                  ToolTip="Open model selection" />
           <Button Grid.Column="7" Content="Send" Margin="8,0,0,0" Width="88"
                   Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendCommand}" />
         </Grid>

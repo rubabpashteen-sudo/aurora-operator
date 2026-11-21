@@ -14,10 +14,11 @@ using Microsoft.Win32;
 namespace AuroraOperator.App.ViewModels;
 
 /// <summary>One line in the centre chat area.</summary>
-public sealed class ChatMessageItem
+public sealed class ChatMessageItem : ViewModelBase
 {
+    private string _content = string.Empty;
     public required string Role { get; init; }
-    public required string Content { get; init; }
+    public required string Content { get => _content; set => SetProperty(ref _content, value); }
     public DateTime Timestamp { get; init; } = DateTime.Now;
     public bool IsUser => Role == "User";
 }
@@ -68,6 +69,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private string? _currentTaskId;
 
     private AgentEngine? _engine;
+    private string _conversationId = Guid.NewGuid().ToString("N");
+    private string? _workspacePath;
+    private string _historyQuery = string.Empty;
+    private AgentTask? _reviewTask;
+    private ChatMessageItem? _streamMessage;
+    private long _historyVersion;
     private CancellationTokenSource? _cts;
     private string _inputText = string.Empty;
     private string _currentModel = "qwen3:4b";
@@ -120,14 +127,27 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         StopCommand = new RelayCommand(Stop, () => IsRunning);
         PauseCommand = new RelayCommand(Pause, () => IsRunning && !IsPaused);
         ResumeCommand = new RelayCommand(Resume, () => IsRunning && IsPaused);
-        NewTaskCommand = new RelayCommand(NewTask);
-        AttachFileCommand = new RelayCommand(AttachFiles);
-        SwitchPanelCommand = new RelayCommand(param => ActivePanel = param as string ?? "Task");
+        NewTaskCommand = new RelayCommand(NewTask, () => !IsRunning);
+        AttachFileCommand = new RelayCommand(AttachFiles, () => !IsRunning && Mode == AgentMode.Ask);
+        ChooseWorkspaceCommand = new RelayCommand(ChooseWorkspace, () => !IsRunning);
+        RunPlanCommand = new RelayCommand(async () => await RunPlanAsync(), () => _reviewTask is not null && !IsRunning);
+        DiscardPlanCommand = new RelayCommand(DiscardPlan, () => _reviewTask is not null && !IsRunning);
+        CopyCommand = new RelayCommand(value =>
+        {
+            if (value is not string text) return;
+            try { System.Windows.Clipboard.SetText(text); StatusMessage = "Copied to clipboard."; }
+            catch (System.Runtime.InteropServices.ExternalException) { StatusMessage = "Clipboard is busy. Try again."; }
+        });
+        SwitchPanelCommand = new RelayCommand(param =>
+        {
+            ActivePanel = param as string ?? "Task";
+            InspectorRequested?.Invoke(this, EventArgs.Empty);
+        });
         ToggleThemeCommand = new RelayCommand(ToggleTheme);
         ApproveCommand = new RelayCommand(param => ResolveApproval(param as ApprovalRequest, approved: true));
         DenyCommand = new RelayCommand(param => ResolveApproval(param as ApprovalRequest, approved: false));
-        LoadRecentTasksCommand = new RelayCommand(LoadRecentTasks);
-        ClearMemoryCommand = new RelayCommand(ClearMemory);
+        LoadRecentTasksCommand = new RelayCommand(async () => await LoadHistoryAsync());
+        ClearMemoryCommand = new RelayCommand(async () => await ClearHistoryAsync(), () => !IsRunning);
         RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync());
         SwitchModelCommand = new RelayCommand(async () => await SwitchModelAsync(), () => !string.IsNullOrWhiteSpace(SelectedModel));
         DownloadModelCommand = new RelayCommand(async () => await DownloadModelAsync(), () => !string.IsNullOrWhiteSpace(SelectedModel));
@@ -136,7 +156,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Messages.Add(new ChatMessageItem
         {
             Role = "Aurora",
-            Content = "Hello — I'm Aurora, your local AI operator. Everything I do runs on this machine through Ollama. Ask me to organise files, research a topic, draft a document, or diagnose this PC. Choose Ask, Plan, or Autonomous below.",
+            Content = "Ask a question, or choose a workspace to inspect files, find duplicates, or draft a text document.",
         });
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -236,6 +256,19 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public ICommand ResumeCommand { get; }
     public ICommand NewTaskCommand { get; }
     public ICommand AttachFileCommand { get; }
+    public ICommand ChooseWorkspaceCommand { get; }
+    public ICommand RunPlanCommand { get; }
+    public ICommand DiscardPlanCommand { get; }
+    public ICommand CopyCommand { get; }
+
+    public event EventHandler? InspectorRequested;
+    public bool HasReviewPlan => _reviewTask is not null;
+    public string WorkspaceName => _workspacePath ?? "Choose a workspace";
+    public string HistoryQuery
+    {
+        get => _historyQuery;
+        set { if (SetProperty(ref _historyQuery, value)) _ = LoadHistoryAsync(); }
+    }
     public ICommand SwitchPanelCommand { get; }
     public ICommand ToggleThemeCommand { get; }
     public ICommand ApproveCommand { get; }
@@ -381,7 +414,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     /// <summary>First load: recent tasks, Ollama status, model list, diagnostics.</summary>
     public async Task InitializeAsync()
     {
-        LoadRecentTasks();
+        await LoadHistoryAsync();
         await RefreshOllamaStatusAsync();
         await RefreshModelsAsync();
         RefreshDiagnostics();
@@ -409,34 +442,37 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Loads a previous task back into the centre view (double-click in Recent Tasks).</summary>
-    public void LoadTaskIntoView(AgentTask task)
+    public async void LoadTaskIntoView(AgentTask task)
     {
-        if (task is null)
+        if (IsRunning || task is null) return;
+        try
         {
-            return;
-        }
-
-        InputText = task.UserRequest;
-        Mode = task.Mode;
-        FinalReport = task.FinalReport ?? string.Empty;
-        VerificationStatus = task.State.ToString();
-        PlanSteps.Clear();
-        if (task.Plan is not null)
-        {
-            foreach (PlanStep step in task.Plan.Steps)
+            string id = task.ConversationId ?? task.TaskId;
+            var turns = await Task.Run(() => _memory.ReadConversationTasks(id));
+            if (IsRunning || turns.Count == 0) return;
+            SetReview(null);
+            _conversationId = id;
+            _workspacePath = turns[^1].WorkspacePath;
+            OnPropertyChanged(nameof(WorkspaceName));
+            Messages.Clear();
+            foreach (var turn in turns)
             {
-                PlanSteps.Add(step);
+                AddMessage("User", turn.UserRequest);
+                if (!string.IsNullOrEmpty(turn.FinalReport)) AddMessage("Aurora", turn.FinalReport);
+                if (turn.State is TaskState.Created or TaskState.Planning or TaskState.Running or TaskState.Paused or TaskState.WaitingApproval)
+                    AddMessage("System", "This task was interrupted or left pending. Start a new request to continue.");
             }
+            InputText = string.Empty;
+            Mode = turns[^1].Mode;
+            FinalReport = turns[^1].FinalReport ?? string.Empty;
+            VerificationStatus = turns[^1].State.ToString();
+            PlanSteps.Clear();
+            AttachedFiles.Clear();
+            FilesUsed.Clear();
+            ActivePanel = "Task";
+            StatusMessage = "Conversation reopened.";
         }
-
-        FilesUsed.Clear();
-        foreach (string artifact in task.Artifacts)
-        {
-            FilesUsed.Add(artifact);
-        }
-
-        ActivePanel = "Task";
-        StatusMessage = "Loaded task " + task.TaskId + " (" + task.State + ").";
+        catch (Exception ex) { StatusMessage = "Could not reopen the conversation: " + ex.Message; }
     }
 
     private void OnTimerTick()
@@ -644,24 +680,25 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
 
         Language language = LanguageDetector.Detect(text);
-        var task = new AgentTask(Guid.NewGuid().ToString("N"), text, language, Mode);
-        _currentTaskId = task.TaskId;
-
-        AddMessage("User", text);
-        if (IsScreenContextEnabled)
+        SetReview(null);
+        var history = Messages.Where(m => m.Role is "User" or "Aurora").TakeLast(6)
+            .Select(m => new ChatMessage(m.IsUser ? "user" : "assistant", m.Content.Length <= 1800 ? m.Content : m.Content[..1800])).ToList();
+        var task = new AgentTask(Guid.NewGuid().ToString("N"), text, language, Mode)
         {
-            AddMessage("System", "Screen context requested for this task (UI Automation snapshot).");
-        }
+            WorkspacePath = _workspacePath,
+            ConversationId = _conversationId,
+            ChatHistory = history,
+        };
+        _currentTaskId = task.TaskId;
+        _streamMessage = null;
+        AddMessage("User", text);
 
         InputText = string.Empty;
-        RecentTasks.Insert(0, task);
-        SaveTaskQuietly(task);
+        var attachments = AttachedFiles.ToArray();
+        AttachedFiles.Clear();
         PlanSteps.Clear();
         FilesUsed.Clear();
-        foreach (string file in AttachedFiles)
-        {
-            FilesUsed.Add(file);
-        }
+        foreach (string file in attachments) FilesUsed.Add(file);
 
         FinalReport = string.Empty;
         VerificationStatus = "Running…";
@@ -675,13 +712,15 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
+            await Task.Run(() => SaveTaskQuietly(task));
+            if (task.Mode == AgentMode.Ask)
+                await LoadAttachmentsAsync(attachments, history, ct);
             AgentTask result = await Task.Run(() => _engine.RunAsync(task, ct), ct);
             ApplyTaskResult(result);
-
-            if (result.State == TaskState.WaitingApproval && result.Plan is not null)
-            {
-                await HandleWaitingApprovalAsync(result, ct);
-            }
+            if (result.Mode == AgentMode.Plan && result.State == TaskState.WaitingApproval)
+                SetReview(result);
+            await Task.Run(() => SaveTaskQuietly(result));
+            await LoadHistoryAsync();
         }
         catch (OperationCanceledException)
         {
@@ -713,64 +752,80 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task HandleWaitingApprovalAsync(AgentTask task, CancellationToken ct)
+    private void ChooseWorkspace()
     {
-        if (task.Plan is null)
-        {
-            return;
-        }
+        var dialog = new OpenFolderDialog { Title = "Choose the folder Aurora may work in" };
+        if (dialog.ShowDialog() != true) return;
+        _workspacePath = dialog.FolderName;
+        SetReview(null);
+        OnPropertyChanged(nameof(WorkspaceName));
+        StatusMessage = "Workspace selected.";
+    }
 
-        // Plan review: one per-request approval per step that requires it,
-        // through the approval service. Approving a step here approves only
-        // that step's exact request — it never grants a whole permission
-        // category, and the engine will ask again at execution time for
-        // each sensitive step.
-        bool allApproved = true;
-        foreach (PlanStep step in task.Plan.Steps)
-        {
-            if (!step.RequiresApproval)
-            {
-                continue;
-            }
+    private void SetReview(AgentTask? task)
+    {
+        _reviewTask = task;
+        OnPropertyChanged(nameof(HasReviewPlan));
+        CommandManager.InvalidateRequerySuggested();
+    }
 
-            var risk = RiskClassifier.Classify(step);
-            var canonical = ApprovalService.CanonicalParameters(step.ToolName, AgentEngine.ResolveArgs(step), step.Description);
-            var request = ApprovalService.CreateRequest(task.TaskId, step, risk, canonical, TimeSpan.FromMinutes(5), MapCategory(step));
+    private async void DiscardPlan()
+    {
+        if (_reviewTask is not { } task) return;
+        SetReview(null);
+        task.State = TaskState.Cancelled;
+        task.FinalReport = "Plan discarded.";
+        ApplyTaskResult(task);
+        await Task.Run(() => SaveTaskQuietly(task));
+    }
 
-            bool approved = await PromptForApprovalAsync(request, ct);
-            if (!approved)
-            {
-                allApproved = false;
-                break;
-            }
-        }
-
-        if (!allApproved)
-        {
-            task.State = TaskState.Cancelled;
-            AddMessage("System", "Execution stopped — an approval was denied.");
-            VerificationStatus = "Cancelled";
-            StatusMessage = "Task cancelled: approval denied.";
-            SaveTaskQuietly(task);
-            return;
-        }
-
-        StatusMessage = "Plan approved — running it. Each sensitive step will ask again before it runs.";
-        VerificationStatus = "Running…";
+    private async Task RunPlanAsync()
+    {
+        if (_reviewTask is not { } task || _engine is null) return;
+        SetReview(null);
+        _currentTaskId = task.TaskId;
+        using var cancellation = new CancellationTokenSource();
+        _cts = cancellation;
+        IsRunning = true;
         try
         {
-            // AgentTask.Mode is init-only, so run a copy in Autonomous
-            // mode; Plan mode would stop at WaitingApproval again.
-            var runTask = task with { Mode = AgentMode.Autonomous };
-            AgentTask result = await Task.Run(() => _engine!.RunAsync(runTask, ct), ct);
+            AgentTask result = await Task.Run(() => _engine.RunReviewedAsync(task, cancellation.Token));
             ApplyTaskResult(result);
+            await Task.Run(() => SaveTaskQuietly(result));
+            await LoadHistoryAsync();
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) { StatusMessage = "Could not run the plan: " + ex.Message; }
+        finally
         {
-            task.State = TaskState.Cancelled;
-            AddMessage("System", "Task cancelled.");
-            VerificationStatus = "Cancelled";
-            SaveTaskQuietly(task);
+            IsRunning = false;
+            IsPaused = false;
+            _cts = null;
+            _currentTaskId = null;
+        }
+    }
+
+    private async Task LoadAttachmentsAsync(IReadOnlyList<string> attachments, List<ChatMessage> context, CancellationToken ct)
+    {
+        foreach (string path in attachments.Take(3))
+        {
+            try
+            {
+                await using var stream = File.OpenRead(path);
+                var bytes = new byte[4097];
+                int count = await stream.ReadAtLeastAsync(bytes, bytes.Length, false, ct);
+                string text = new System.Text.UTF8Encoding(false, true).GetString(bytes, 0, count);
+                if (count == bytes.Length || text.Contains('\0'))
+                {
+                    AddMessage("System", $"Skipped {Path.GetFileName(path)}. Use UTF-8 text attachments up to 4 KiB.");
+                    continue;
+                }
+                context.Add(new ChatMessage("user", System.Text.Json.JsonSerializer.Serialize(
+                    new { attachment = Path.GetFileName(path), untrustedText = text })));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
+            {
+                AddMessage("System", $"Could not read attachment {Path.GetFileName(path)}.");
+            }
         }
     }
 
@@ -785,11 +840,6 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        FilesUsed.Clear();
-        foreach (string file in AttachedFiles)
-        {
-            FilesUsed.Add(file);
-        }
         foreach (string artifact in result.Artifacts)
         {
             if (!FilesUsed.Contains(artifact))
@@ -801,7 +851,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         FinalReport = result.FinalReport ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(result.FinalReport))
         {
-            AddMessage("Aurora", result.FinalReport);
+            if (_streamMessage is null) AddMessage("Aurora", result.FinalReport);
+            else _streamMessage.Content = result.FinalReport;
         }
         else if (result.Log.Count > 0)
         {
@@ -836,7 +887,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             RecentTasks[index] = result;
         }
 
-        SaveTaskQuietly(result);
+        _streamMessage = null;
     }
 
     /// <summary>
@@ -979,6 +1030,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
         _cts?.Cancel();
         _currentTaskId = null;
+        SetReview(null);
+        _conversationId = Guid.NewGuid().ToString("N");
         InputText = string.Empty;
         Messages.Clear();
         PlanSteps.Clear();
@@ -1018,43 +1071,36 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void LoadRecentTasks()
+    private async Task LoadHistoryAsync()
     {
+        long version = ++_historyVersion;
+        string query = HistoryQuery.Trim();
         try
         {
-            // MemoryStore.ListRecentTasks returns the stored AgentTask records.
+            var results = await Task.Run(() => _memory.SearchTaskHistory(query));
+            if (version != _historyVersion) return;
             RecentTasks.Clear();
-            foreach (AgentTask task in _memory.ListRecentTasks(20))
-            {
-                RecentTasks.Add(task);
-            }
+            foreach (var task in results) RecentTasks.Add(task);
         }
-        catch (Exception ex)
-        {
-            StatusMessage = "Could not load recent tasks: " + ex.Message;
-            LocalLogger.Warn("LoadRecentTasks failed. " + ex.Message);
-        }
+        catch (Exception ex) { StatusMessage = "Could not load local history: " + ex.Message; }
     }
 
-    private void ClearMemory()
+    private async Task ClearHistoryAsync()
     {
+        if (System.Windows.MessageBox.Show("Delete all locally saved conversations and task history?", "Clear local history",
+            System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) != System.Windows.MessageBoxResult.Yes)
+            return;
+        IsRunning = true;
         try
         {
-            _memory.ClearConversations();
-            Messages.Clear();
+            await Task.Run(_memory.ClearHistory);
+            NewTask();
             RecentTasks.Clear();
-            Messages.Add(new ChatMessageItem
-            {
-                Role = "Aurora",
-                Content = "Conversation history cleared from local memory.",
-            });
-            StatusMessage = "Local conversation history cleared.";
+            await LoadHistoryAsync();
+            StatusMessage = "Local conversation and task history cleared.";
         }
-        catch (Exception ex)
-        {
-            StatusMessage = "Could not clear memory: " + ex.Message;
-            LocalLogger.Error("ClearMemory failed.", ex);
-        }
+        catch (Exception ex) { StatusMessage = "Could not clear local history: " + ex.Message; }
+        finally { IsRunning = false; }
     }
 
     private void ToggleTheme()
@@ -1065,9 +1111,25 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void OnAgentEvent(AgentEvent evt)
     {
-        StatusMessage = evt.Message;
-
-        if (!string.IsNullOrWhiteSpace(evt.StepId))
+        if (evt.TaskId != _currentTaskId) return;
+        if (evt.IsStreaming)
+        {
+            if (_streamMessage is null)
+            {
+                _streamMessage = new ChatMessageItem { Role = "Aurora", Content = evt.Message };
+                Messages.Add(_streamMessage);
+            }
+            else _streamMessage.Content = evt.Message;
+            return;
+        }
+        StatusMessage = evt.Message.Split('\n')[0];
+        if (evt.Step is { } snapshot)
+        {
+            var existing = PlanSteps.FirstOrDefault(step => step.Id == snapshot.Id);
+            if (existing is null) PlanSteps.Add(snapshot);
+            else PlanSteps[PlanSteps.IndexOf(existing)] = snapshot;
+        }
+        else if (!string.IsNullOrWhiteSpace(evt.StepId))
         {
             for (int i = 0; i < PlanSteps.Count; i++)
             {
@@ -1108,14 +1170,4 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Messages.Add(new ChatMessageItem { Role = role, Content = content });
     }
 
-    private static PermissionCategory MapCategory(PlanStep step)
-    {
-        return step.ToolName switch
-        {
-            "browser" => PermissionCategory.BrowserAccess,
-            "coding" => PermissionCategory.TerminalExecution,
-            "filesystem" => PermissionCategory.FileAccess,
-            _ => PermissionCategory.FileAccess,
-        };
-    }
 }

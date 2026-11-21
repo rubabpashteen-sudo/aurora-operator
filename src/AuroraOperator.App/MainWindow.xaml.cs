@@ -20,9 +20,24 @@ public partial class MainWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
         InitializeComponent();
+        var workArea = SystemParameters.WorkArea;
+        MinWidth = Math.Min(MinWidth, workArea.Width);
+        MinHeight = Math.Min(MinHeight, workArea.Height);
+        Width = Math.Min(Width, workArea.Width);
+        Height = Math.Min(Height, workArea.Height);
 
         _viewModel.ThemeToggleRequested += (_, _) => ApplyTheme(_viewModel.IsDarkTheme);
-        InputBox.Focus();
+        Loaded += (_, _) => { LayoutPanels(); InputBox.Focus(); };
+        SizeChanged += (_, _) => LayoutPanels();
+        _viewModel.InspectorRequested += (_, _) => ShowInspector(this, new RoutedEventArgs());
+        _viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ActivePanel))
+            {
+                _inspectorVisible = true;
+                LayoutPanels();
+            }
+        };
     }
 
     /// <summary>
@@ -65,6 +80,71 @@ public partial class MainWindow : Window
                 _viewModel.SendCommand.Execute(null);
             }
         }
+    }
+
+    private bool _navigationVisible = true;
+    private bool _inspectorVisible;
+
+    private void LayoutPanels()
+    {
+        if (NavigationColumn is null || InspectorColumn is null) return;
+        bool showNavigation = _navigationVisible && (ActualWidth >= 920 || !_inspectorVisible);
+        NavigationColumn.Width = new GridLength(showNavigation ? 198 : 0);
+        NavigationPanel.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
+        InspectorColumn.Width = new GridLength(_inspectorVisible ? (ActualWidth >= 920 ? 300 : 258) : 0);
+        InspectorPanel.Visibility = _inspectorVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ToggleNavigation(object sender, RoutedEventArgs e)
+    {
+        _navigationVisible = NavigationColumn.Width.Value == 0;
+        if (_navigationVisible && ActualWidth < 920) _inspectorVisible = false;
+        LayoutPanels();
+    }
+
+    private void ToggleInspector(object sender, RoutedEventArgs e)
+    {
+        _inspectorVisible = !_inspectorVisible;
+        LayoutPanels();
+    }
+
+    private void ShowInspector(object sender, RoutedEventArgs e)
+    {
+        _inspectorVisible = true;
+        LayoutPanels();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        if (e.Key == Key.N && _viewModel.NewTaskCommand.CanExecute(null))
+        {
+            _viewModel.NewTaskCommand.Execute(null);
+            InputBox.Focus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F)
+        {
+            _viewModel.ActivePanel = "Recent";
+            ShowInspector(this, e);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+                new Action(() => Keyboard.Focus(HistorySearch)));
+            e.Handled = true;
+        }
+    }
+
+    private void ConversationScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.ExtentHeightChange > 0 && e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - e.ExtentHeightChange - 28)
+            ConversationScroll.ScrollToEnd();
+    }
+
+    private void RecentTasksList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || RecentTasksList.SelectedItem is not AgentTask task) return;
+        _viewModel.LoadTaskIntoView(task);
+        e.Handled = true;
     }
 
     /// <summary>Double-click a recent task to load it back into the chat.</summary>

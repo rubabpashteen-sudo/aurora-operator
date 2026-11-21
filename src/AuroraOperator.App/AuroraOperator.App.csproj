@@ -10,7 +10,7 @@
     <AssemblyName>AuroraOperator</AssemblyName>
     <RootNamespace>AuroraOperator.App</RootNamespace>
     <ApplicationIcon>Assets\aurora.ico</ApplicationIcon>
-    <Version>0.2.0</Version>
+    <Version>0.3.0-rc.1</Version>
     <Authors>Aurora Operator</Authors>
     <Description>Aurora Operator — a local-first Windows desktop AI agent powered by Ollama.</Description>
   </PropertyGroup>
