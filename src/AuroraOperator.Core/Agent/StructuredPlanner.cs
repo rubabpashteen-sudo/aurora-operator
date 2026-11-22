@@ -35,7 +35,7 @@ internal sealed class StructuredPlanner
         {
             tool.Name,
             tool.Description,
-            arguments = tool.Fields.ToDictionary(field => field.Key, field => new { type = "string", maxLength = field.Value }),
+            requiredArguments = tool.Fields.Keys,
             approval = tool.Risk != Security.RiskLevel.ReadOnly
         });
         var system = new ChatMessage("system",
@@ -45,6 +45,8 @@ internal sealed class StructuredPlanner
             For coding, put the complete requested code in write-new-text and use verify-text with a short literal from that code.
             For a social post, use draft-social-post with the actual copy and platform. Publication and signed-in browser actions are unsupported.
             Never substitute a different app or the This PC window. Use only operations that advance the stated task.
+            Add one call for each supported requested action, in order. Preserve exact filenames, URLs and platforms from the request.
+            Verification text must appear literally in the written file.
             Answer only with {"calls":[{"tool":"exact name","args":{"required field":"value"}}],"continue":false}.
             Use at most {{{remaining}}} calls. Supply every required argument. Use paths relative to the selected folder;
             use "." for its root. Never invent file names for existing files. Set calls to [] if the goal cannot be
@@ -58,12 +60,14 @@ internal sealed class StructuredPlanner
         var schema = BuildSchema(remaining);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
         budget.CancelAfter(TimeSpan.FromSeconds(90));
+        const string RepairShape = "Return a fresh JSON object matching the schema, using the original request for argument values.";
+        string repair = RepairShape;
         for (int attempt = 0; attempt < 2; attempt++)
         {
             try
             {
                 IReadOnlyList<ChatMessage> messages = attempt == 0 ? [system, user] : [system, user,
-                    new("user", "Your previous response failed schema validation. Return a fresh JSON object matching the exact schema.")];
+                    new("user", repair)];
                 string output = await _generate(messages, schema, budget.Token).ConfigureAwait(false);
                 budget.Token.ThrowIfCancellationRequested();
                 var batch = Parse(output, offset);
@@ -73,7 +77,8 @@ internal sealed class StructuredPlanner
             }
             catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
             {
-                // Give the model one bounded chance to return a valid response.
+                // Only include validation messages owned by Aurora. Parser errors can echo untrusted input.
+                repair = ex is FormatException ? $"{ex.Message} {RepairShape}" : RepairShape;
             }
             catch (Exception ex) when (ex is HttpRequestException or ModelNotFoundException ||
                 ex is OperationCanceledException && !ct.IsCancellationRequested)
@@ -104,8 +109,13 @@ internal sealed class StructuredPlanner
                 ["args"] = new
                 {
                     type = "object",
-                    properties = tool.Fields.ToDictionary(
-                        field => field.Key, field => new { type = "string", minLength = 1, maxLength = field.Value }),
+                    properties = tool.Fields.ToDictionary(field => field.Key, field =>
+                        field.Key switch
+                        {
+                            "platform" => (object)new { type = "string", @enum = WorkspaceTools.SocialDraftPlatforms },
+                            "target" => new { type = "string", @enum = DesktopActions.ModelTargets },
+                            _ => new { type = "string", minLength = 1, maxLength = field.Value },
+                        }),
                     required = tool.Fields.Keys,
                     additionalProperties = false,
                 },

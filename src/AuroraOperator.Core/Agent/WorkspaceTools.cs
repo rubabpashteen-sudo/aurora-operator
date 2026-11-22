@@ -9,6 +9,9 @@ namespace AuroraOperator.Core.Agent;
 
 internal sealed class WorkspaceTools
 {
+    internal static IReadOnlyList<string> SocialDraftPlatforms { get; } =
+        Array.AsReadOnly(new[] { "facebook", "instagram", "linkedin", "threads", "x", "mastodon" });
+
     internal sealed record Tool(string Name, string Description, RiskLevel Risk,
         IReadOnlyDictionary<string, int> Fields, TimeSpan Timeout,
         Func<IReadOnlyDictionary<string, string>, CancellationToken, Task<ToolResult>> Execute);
@@ -37,7 +40,7 @@ internal sealed class WorkspaceTools
         };
         var registry = (_root is null ? Array.Empty<Tool>() : tools).ToDictionary(t => t.Name, StringComparer.Ordinal);
         registry.Add(DesktopActions.ToolName, Register(DesktopActions.ToolName,
-            "Open a built-in Windows app. Allowed target values are chrome, explorer, calculator, and notepad. Approval is required.",
+            $"Open an allowlisted Windows app. Allowed targets are {string.Join(", ", DesktopActions.ModelTargets)}. Approval is required.",
             RiskLevel.NormalReversible, DesktopActions.OpenAsync, ("target", 20)));
         registry.Add(BrowserWorkflow.OpenTab, Register(BrowserWorkflow.OpenTab,
             "Open a named HTTPS page in installed Google Chrome. Use only a requested destination.",
@@ -79,7 +82,7 @@ internal sealed class WorkspaceTools
             if (field.Name == "platform")
             {
                 value = value.Trim().ToLowerInvariant();
-                if (value is not ("facebook" or "instagram" or "linkedin" or "threads" or "x" or "mastodon"))
+                if (!SocialDraftPlatforms.Contains(value, StringComparer.Ordinal))
                     throw new FormatException("Select a supported social draft platform.");
             }
             if (!args.TryAdd(field.Name, value))

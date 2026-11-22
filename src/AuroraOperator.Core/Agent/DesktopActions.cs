@@ -5,6 +5,8 @@ namespace AuroraOperator.Core.Agent;
 internal static class DesktopActions
 {
     internal const string ToolName = "open-windows-app";
+    internal static IReadOnlyList<string> ModelTargets { get; } =
+        Array.AsReadOnly(new[] { "chrome", "explorer", "calculator", "notepad" });
 
     internal static string? MatchRequest(string request) => request.Trim().TrimEnd('.', '!').ToLowerInvariant() switch
     {
