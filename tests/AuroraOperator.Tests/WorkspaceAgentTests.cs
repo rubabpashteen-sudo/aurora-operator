@@ -228,6 +228,82 @@ public sealed class WorkspaceAgentTests : IDisposable
         Assert.Empty(approval.Seen);
     }
 
+    [Theory]
+    [InlineData("open google chrome", "open-windows-app", "chrome")]
+    [InlineData("open google chrome and open example.com", "open-chrome-tab", "https://example.com/")]
+    [InlineData("chrome kholo os mein example.com kholo", "open-chrome-tab", "https://example.com/")]
+    [InlineData("open chrome and search for Windows shortcuts", "open-chrome-tab", "https://www.google.com/search?q=Windows%20shortcuts")]
+    public async Task ChromeRequestsUseTheExactTargetAndRequireApproval(string request, string tool, string expected)
+    {
+        var approval = new Approval(ApprovalOutcome.Rejected);
+        using var engine = Engine(null, approval);
+        var task = await engine.RunAsync(NewTask(request) with { WorkspacePath = null }, CancellationToken.None);
+        var step = Assert.Single(task.Plan!.Steps);
+        Assert.Equal(tool, step.ToolName);
+        Assert.Equal(expected, step.Args.Values.Single());
+        Assert.Contains(expected, Assert.Single(approval.Seen).ExactParameters);
+        Assert.Equal(TaskState.Failed, task.State);
+    }
+
+    [Fact]
+    public async Task UnrelatedRequestsRejectInventedThisPcEvenWithAValidToolSchema()
+    {
+        const string other = """{"calls":[{"tool":"open-windows-app","args":{"target":"this-pc"}}],"continue":false}""";
+        using var ollama = new OllamaClient(new Model(other, other));
+        var approval = new Approval(ApprovalOutcome.Approved);
+        using var engine = Engine(ollama, approval);
+        var task = await engine.RunAsync(NewTask("Write a Python program"), CancellationToken.None);
+        Assert.Equal(TaskState.Failed, task.State);
+        Assert.Empty(approval.Seen);
+        Assert.Empty(task.Plan!.Steps);
+    }
+
+    [Theory]
+    [InlineData("file:///C:/Windows/win.ini")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("https://127.0.0.1/")]
+    [InlineData("https://host.internal/path")]
+    [InlineData("https://example.com:1234/")]
+    public async Task InvalidAddressesCannotBeLaunched(string url)
+    {
+        string response = JsonSerializer.Serialize(new
+        {
+            calls = new[] { new { tool = "open-chrome-tab", args = new { url } } },
+            @continue = false,
+        });
+        using var ollama = new OllamaClient(new Model(response, response));
+        var approval = new Approval(ApprovalOutcome.Approved);
+        using var engine = Engine(ollama, approval);
+        var task = await engine.RunAsync(NewTask("Open the page in Chrome"), CancellationToken.None);
+        Assert.Equal(TaskState.Failed, task.State);
+        Assert.Empty(approval.Seen);
+    }
+
+    [Fact]
+    public async Task ComplexWorkflowWritesCodeVerifiesItAndReturnsSocialDraft()
+    {
+        const string read = """{"calls":[{"tool":"list","args":{"path":"."}}],"continue":true}""";
+        const string plan = """
+            {"calls":[
+              {"tool":"write-new-text","args":{"path":"totals.py","text":"def total(values):\n    return sum(values)\n"}},
+              {"tool":"verify-text","args":{"path":"totals.py","expected":"return sum(values)"}},
+              {"tool":"draft-social-post","args":{"platform":"linkedin","text":"I wrote a small Python helper that totals a list."}}
+            ],"continue":false}
+            """;
+        var model = new Model(read, plan);
+        using var ollama = new OllamaClient(model);
+        var approval = new Approval(ApprovalOutcome.Approved);
+        using var engine = Engine(ollama, approval);
+        var task = await engine.RunAsync(NewTask("Inspect this workspace, write and verify the Python helper, then prepare a LinkedIn draft."), CancellationToken.None);
+        Assert.Equal(TaskState.Completed, task.State);
+        Assert.Equal(4, task.Plan!.Steps.Count);
+        Assert.Contains("return sum(values)", await File.ReadAllTextAsync(Path.Combine(_root, "totals.py")));
+        Assert.Equal("write-new-text", Assert.Single(approval.Seen).Title);
+        Assert.Contains("Publication is pending", task.FinalReport);
+        Assert.Contains("I wrote a small Python helper", task.FinalReport);
+        Assert.Equal(2, model.Requests.Count);
+    }
+
     private AgentTask NewTask(string request, AgentMode mode = AgentMode.Autonomous) =>
         new(Guid.NewGuid().ToString("N"), request, Language.English, mode) { WorkspacePath = _root };
 

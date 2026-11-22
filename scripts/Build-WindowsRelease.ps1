@@ -16,8 +16,8 @@ $stage = Join-Path $StageDirectory ('aurora-' + [Guid]::NewGuid().ToString('N').
 $publish = Join-Path $stage 'app'
 $release = [IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force $release | Out-Null
-$setup = Join-Path $release 'AuroraOperator-Setup-0.3.0-rc.2-x64.exe'
-$zip = Join-Path $release 'AuroraOperator-Portable-0.3.0-rc.2-x64.zip'
+$setup = Join-Path $release 'AuroraOperator-Setup-0.3.0-rc.3-x64.exe'
+$zip = Join-Path $release 'AuroraOperator-Portable-0.3.0-rc.3-x64.zip'
 $manifest = Join-Path $stage 'uninstall-files.nsh'
 
 Push-Location $assets

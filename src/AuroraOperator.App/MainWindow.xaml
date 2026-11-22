@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:AuroraOperator.Core;assembly=AuroraOperator.Core"
         xmlns:app="clr-namespace:AuroraOperator.App"
-        Title="Aurora Operator · RC 2" Width="1240" Height="800" MinWidth="730" MinHeight="540"
+        Title="Aurora Operator · RC 3" Width="1240" Height="800" MinWidth="730" MinHeight="540"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text, Segoe UI"
         UseLayoutRounding="True" Icon="Assets/aurora.ico"
         Background="{DynamicResource WindowBackgroundBrush}" Foreground="{DynamicResource TextBrush}">
@@ -94,7 +94,7 @@
                              FontSize="15" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,24"/>
                   <WrapPanel>
                     <Button Content="Open This PC" Tag="open my computer" Click="UseSuggestion" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
-                    <Button Content="Open Calculator" Tag="open calculator" Click="UseSuggestion" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
+                    <Button Content="Open Chrome" Tag="open google chrome" Click="UseSuggestion" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
                     <Button Content="Choose workspace" Command="{Binding ChooseWorkspaceCommand}" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,8"/>
                   </WrapPanel>
                 </StackPanel>

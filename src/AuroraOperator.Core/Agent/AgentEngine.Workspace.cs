@@ -42,13 +42,13 @@ public sealed partial class AgentEngine
             }
 
             string model = SessionFallbackModel ?? _model;
-            var planner = new StructuredPlanner(task.WorkspacePath, async (messages, token) =>
+            var planner = new StructuredPlanner(task.WorkspacePath, async (messages, schema, token) =>
             {
                 if (_ollama is null)
                     throw new HttpRequestException("No local model connection.");
                 try
                 {
-                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength).ConfigureAwait(false);
+                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength, responseSchema: schema).ConfigureAwait(false);
                 }
                 catch (ModelNotFoundException) when (model == _model)
                 {
@@ -57,7 +57,7 @@ public sealed partial class AgentEngine
                     fallbackNotice = $"Using installed model {fallback} because {model} is unavailable.";
                     LastMissingModel = model;
                     SessionFallbackModel = model = fallback;
-                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength).ConfigureAwait(false);
+                    return await _ollama.ChatAsync(model, messages, token, structured: true, contextLength: ContextLength, responseSchema: schema).ConfigureAwait(false);
                 }
             });
             var plan = new TaskPlan(task.TaskId, task.UserRequest, task.Language, steps.AsReadOnly(),
@@ -89,7 +89,7 @@ public sealed partial class AgentEngine
                         Array.AsReadOnly(steps.ToArray()), plan.Summary));
                     var origin = usedOfflineFallback ? "\nThis preview uses the deterministic read-only fallback." : "";
                     var notice = fallbackNotice is null ? "" : fallbackNotice + "\n";
-                    task.FinalReport = $"{notice}{plan.Summary}{origin}\nReview these steps in the task panel, then choose Run plan. Actions that change files or open apps also require individual approval.";
+                    task.FinalReport = $"{notice}{plan.Summary}{origin}\nReview these steps in the task panel, then choose Run plan. File changes, browser requests, and app launches also require individual approval.";
                     return task;
                 }
 
@@ -138,7 +138,7 @@ public sealed partial class AgentEngine
                         result.Success, summary = Limit(result.Summary, 400), data = details });
                     if (result.Success)
                     {
-                        completed.Add(result.Summary + (tool.Name is "list" or "duplicates" && details is not null ? "\n" + details : ""));
+                        completed.Add(result.Summary + (tool.Name is "list" or "duplicates" or BrowserWorkflow.ReadPage or "draft-social-post" && details is not null ? "\n" + details : ""));
                         if (result.OutputPath is { } artifact) task.Artifacts.Add(artifact);
                         continue;
                     }
@@ -197,7 +197,7 @@ public sealed partial class AgentEngine
             return new ToolResult(false, "Tool time limit exceeded. Check the workspace before retrying.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException or ArgumentException
-            or System.ComponentModel.Win32Exception)
+            or HttpRequestException or System.ComponentModel.Win32Exception)
         {
             return new ToolResult(false, ex.Message);
         }

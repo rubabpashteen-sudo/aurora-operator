@@ -255,7 +255,7 @@ public sealed class ApprovalService : IApprovalService
     private static PermissionCategory MapCategory(PlanStep step) =>
         (step.ToolName ?? string.Empty).ToLowerInvariant() switch
         {
-            "browser" => PermissionCategory.BrowserAccess,
+            "browser" or "open-chrome-tab" or "read-public-page" => PermissionCategory.BrowserAccess,
             "open-windows-app" or "open-in-notepad" => PermissionCategory.ApplicationLaunch,
             "coding" => PermissionCategory.TerminalExecution,
             "terminal" => PermissionCategory.TerminalExecution,

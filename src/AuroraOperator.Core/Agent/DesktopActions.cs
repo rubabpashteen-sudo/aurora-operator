@@ -12,6 +12,7 @@ internal static class DesktopActions
         "open file explorer" or "open explorer" or "explorer kholo" => "explorer",
         "open calculator" or "calculator kholo" => "calculator",
         "open notepad" or "notepad kholo" => "notepad",
+        "open chrome" or "open google chrome" or "chrome kholo" or "google chrome kholo" or "google chrome open karo" or "chrome open karo" => "chrome",
         _ => null,
     };
 
@@ -21,6 +22,7 @@ internal static class DesktopActions
         "explorer" => "File Explorer",
         "calculator" => "Calculator",
         "notepad" => "Notepad",
+        "chrome" => "Google Chrome",
         _ => null,
     };
 
@@ -34,12 +36,14 @@ internal static class DesktopActions
         if (name is null)
             return Task.FromResult(new ToolResult(false, "This desktop target is unavailable."));
 
-        string executable = target switch
+        string? executable = target switch
         {
+            "chrome" => BrowserWorkflow.FindChrome(),
             "calculator" => Path.Combine(Environment.SystemDirectory, "calc.exe"),
             "notepad" => Path.Combine(Environment.SystemDirectory, "notepad.exe"),
             _ => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"),
         };
+        if (executable is null) return Task.FromResult(new ToolResult(false, "Google Chrome was not found."));
         var launch = new ProcessStartInfo(executable) { UseShellExecute = false };
         if (target == "this-pc") launch.ArgumentList.Add("shell:MyComputerFolder");
         ct.ThrowIfCancellationRequested();

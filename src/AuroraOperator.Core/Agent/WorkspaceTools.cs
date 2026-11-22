@@ -32,12 +32,22 @@ internal sealed class WorkspaceTools
             Register("create-folder", "Create one folder whose parent already exists.", RiskLevel.SensitiveFileModification, CreateFolder, ("path", 260)),
             Register("move-file", "Move one file to an existing folder. Destination includes the filename and must be unused.", RiskLevel.SensitiveFileModification, MoveFile, ("path", 260), ("destination", 260)),
             Register("write-new-text", "Create and read back a new UTF-8 text file. Parent must exist; existing files are refused.", RiskLevel.SensitiveFileModification, WriteText, ("path", 260), ("text", 12000)),
+            Register("verify-text", "Check that a small UTF-8 workspace file contains the requested literal text.", RiskLevel.ReadOnly, VerifyText, ("path", 260), ("expected", 400)),
             Register("open-in-notepad", "Open an existing .txt file in Windows Notepad for the user.", RiskLevel.SensitiveFileModification, OpenInNotepad, ("path", 260)),
         };
         var registry = (_root is null ? Array.Empty<Tool>() : tools).ToDictionary(t => t.Name, StringComparer.Ordinal);
         registry.Add(DesktopActions.ToolName, Register(DesktopActions.ToolName,
-            "Open a built-in Windows app. Allowed target values are this-pc, explorer, calculator, and notepad. Approval is required.",
+            "Open a built-in Windows app. Allowed target values are chrome, explorer, calculator, and notepad. Approval is required.",
             RiskLevel.NormalReversible, DesktopActions.OpenAsync, ("target", 20)));
+        registry.Add(BrowserWorkflow.OpenTab, Register(BrowserWorkflow.OpenTab,
+            "Open a named HTTPS page in installed Google Chrome. Use only a requested destination.",
+            RiskLevel.ExternalCommunication, BrowserWorkflow.OpenAsync, ("url", 2000)));
+        registry.Add(BrowserWorkflow.ReadPage, Register(BrowserWorkflow.ReadPage,
+            "Fetch a public HTTPS page for a short text preview. Does not access Chrome sessions, accounts, or interactive controls.",
+            RiskLevel.ExternalCommunication, BrowserWorkflow.ReadAsync, ("url", 2000)));
+        registry.Add("draft-social-post", Register("draft-social-post",
+            "Present the exact draft copy for a social post with its intended platform. This tool does not publish.",
+            RiskLevel.ReadOnly, DraftSocialPost, ("platform", 25), ("text", 1100)));
         Registry = new ReadOnlyDictionary<string, Tool>(registry);
     }
 
@@ -61,13 +71,31 @@ internal sealed class WorkspaceTools
                 throw new FormatException("Argument is empty or too large.");
             if (field.Name is "path" or "destination")
                 value = Resolve(value, name is "list" or "duplicates");
+            if (field.Name == "url")
+            {
+                if (!BrowserWorkflow.TryPublicUrl(value, out var uri)) throw new FormatException("Use a public HTTPS page address.");
+                value = uri.AbsoluteUri;
+            }
+            if (field.Name == "platform")
+            {
+                value = value.Trim().ToLowerInvariant();
+                if (value is not ("facebook" or "instagram" or "linkedin" or "threads" or "x" or "mastodon"))
+                    throw new FormatException("Select a supported social draft platform.");
+            }
             if (!args.TryAdd(field.Name, value))
                 throw new FormatException("Duplicate argument.");
         }
         if (args.Count != tool.Fields.Count)
             throw new FormatException("Missing required argument.");
         var description = string.Join(Environment.NewLine, args.Select(arg => $"{arg.Key}: {arg.Value}"));
-        string title = name;
+        string title = name switch
+        {
+            BrowserWorkflow.OpenTab => "Open Chrome tab",
+            BrowserWorkflow.ReadPage => "Read public page",
+            "draft-social-post" => $"Draft a post for {args["platform"]}",
+            "verify-text" => "Verify workspace file",
+            _ => name,
+        };
         if (name == DesktopActions.ToolName)
         {
             title = "Open " + (DesktopActions.DisplayName(args["target"]) ?? throw new FormatException("Unsupported Windows app."));
@@ -193,6 +221,25 @@ internal sealed class WorkspaceTools
         if (content.Contains('\0'))
             return new ToolResult(false, "The file is not supported UTF-8 text.");
         return new ToolResult(true, $"Read {length} bytes from {Path.GetFileName(path)}.", content);
+    }
+
+    private static async Task<ToolResult> VerifyText(IReadOnlyDictionary<string, string> args, CancellationToken ct)
+    {
+        var read = await ReadText(args, ct).ConfigureAwait(false);
+        if (!read.Success) return read;
+        bool matched = read.Details?.Contains(args["expected"], StringComparison.Ordinal) == true;
+        return new ToolResult(matched, matched
+            ? $"Verified the requested text in {Path.GetFileName(args["path"])}."
+            : $"The requested text was not found in {Path.GetFileName(args["path"])}.");
+    }
+
+    private static Task<ToolResult> DraftSocialPost(IReadOnlyDictionary<string, string> args, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        string text = args["text"].Trim();
+        return Task.FromResult(text.Length == 0
+            ? new ToolResult(false, "The draft text was empty.")
+            : new ToolResult(true, $"Prepared a {args["platform"]} draft for your review. Publication is pending.", text));
     }
 
     private static Task<ToolResult> CreateFolder(IReadOnlyDictionary<string, string> args, CancellationToken ct)

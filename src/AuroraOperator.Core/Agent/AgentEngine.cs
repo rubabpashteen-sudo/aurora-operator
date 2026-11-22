@@ -685,6 +685,8 @@ public sealed partial class AgentEngine : IDisposable
 
     private async Task<string> AnswerAsync(AgentTask task, TaskPlan plan, CancellationToken ct)
     {
+        if (_useWorkspacePlanner && BrowserWorkflow.MatchDirectTab(task.UserRequest) is not null)
+            return "Switch to Agent and send this request to open the Chrome tab. Aurora will show the exact address for approval.";
         if (_useWorkspacePlanner && DesktopActions.MatchRequest(task.UserRequest) is { } target)
             return $"Switch to Agent and send this request to open {DesktopActions.DisplayName(target)}. Aurora will show an approval first.";
         if (_useWorkspacePlanner)

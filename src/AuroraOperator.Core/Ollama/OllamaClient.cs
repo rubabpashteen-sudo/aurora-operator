@@ -231,7 +231,7 @@ public sealed class OllamaClient : IDisposable
     /// 4xx responses fail immediately. A 404 whose body says the model is
     /// not installed throws <see cref="ModelNotFoundException"/> instead of
     /// a generic failure, so callers can fall back to an installed model.</summary>
-    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct, bool structured = false, int contextLength = 8192)
+    public async Task<string> ChatAsync(string model, IEnumerable<ChatMessage> messages, CancellationToken ct, bool structured = false, int contextLength = 8192, JsonElement? responseSchema = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         var payload = new Dictionary<string, object>
@@ -242,7 +242,7 @@ public sealed class OllamaClient : IDisposable
         };
         if (structured)
         {
-            payload["format"] = "json";
+            payload["format"] = responseSchema is { } schema ? (object)schema : "json";
             payload["think"] = false;
             payload["options"] = new { temperature = 0, num_predict = 2400, num_ctx = Math.Clamp(contextLength, 2048, 16384) };
         }
